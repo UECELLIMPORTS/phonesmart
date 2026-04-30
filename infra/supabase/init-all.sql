@@ -1,201 +1,9 @@
 -- ╔══════════════════════════════════════════════════════════════════╗
--- ║ PhoneSmart — Init completo do banco (rodar UMA vez no SQL editor) ║
+-- ║ PhoneSmart — Init completo (CheckSmart 001-018 + SmartERP 001b-037) ║
 -- ╚══════════════════════════════════════════════════════════════════╝
 
-
 -- ════════════════════════════════════════════════════════════════════════════
--- 001b_smarterp_tables.sql
--- ════════════════════════════════════════════════════════════════════════════
--- ╔══════════════════════════════════════════════════════════════════════════╗
--- ║  001b — Tabelas core do SmartERP (products, sales, parts_catalog)        ║
--- ╚══════════════════════════════════════════════════════════════════════════╝
---
--- Complemento do 001_initial_schema.sql (que vem do CheckSmart e cria
--- tenants, customers, service_orders etc). Aqui criamos as tabelas que
--- as migrations 002-037 do SmartERP assumem existir mas que historicamente
--- foram criadas direto no SQL editor sem virar migration:
---   - products
---   - sales
---   - sale_items
---   - parts_catalog
---
--- IMPORTANTE: campos que foram adicionados via migrations posteriores
--- (ex: products.category, sales.sale_channel) NÃO entram aqui — vão ser
--- adicionados via ALTER TABLE quando as migrations 002+ rodarem em ordem.
-
--- ════════════════════════════════════════════════════════════
--- products
--- ════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS public.products (
-  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id             UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-
-  code                  TEXT,
-  name                  TEXT NOT NULL,
-  brand                 TEXT,
-  format                TEXT NOT NULL DEFAULT 'simples',
-  condition             TEXT NOT NULL DEFAULT 'novo',
-  gtin                  TEXT,
-
-  -- Preços em centavos
-  purchase_price_cents  INTEGER NOT NULL DEFAULT 0,
-  cost_cents            INTEGER NOT NULL DEFAULT 0,
-  price_cents           INTEGER NOT NULL DEFAULT 0,
-  unit                  TEXT NOT NULL DEFAULT 'Un',
-
-  -- Estoque
-  stock_qty             NUMERIC(12, 3) NOT NULL DEFAULT 0,
-  stock_min             NUMERIC(12, 3) NOT NULL DEFAULT 0,
-  stock_max             NUMERIC(12, 3) NOT NULL DEFAULT 0,
-  location              TEXT,
-  supplier              TEXT,
-
-  image_urls            TEXT[] NOT NULL DEFAULT '{}',
-  description           TEXT,
-  active                BOOLEAN NOT NULL DEFAULT true,
-
-  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_products_tenant       ON public.products(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_products_tenant_name  ON public.products(tenant_id, name);
-CREATE INDEX IF NOT EXISTS idx_products_tenant_code  ON public.products(tenant_id, code) WHERE code IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_products_tenant_gtin  ON public.products(tenant_id, gtin) WHERE gtin IS NOT NULL;
-
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "products: tenant isolation" ON public.products;
-CREATE POLICY "products: tenant isolation"
-  ON public.products FOR ALL
-  USING (tenant_id = public.tenant_id())
-  WITH CHECK (tenant_id = public.tenant_id());
-
--- ════════════════════════════════════════════════════════════
--- sales
--- ════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS public.sales (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id         UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  user_id           UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  customer_id       UUID REFERENCES public.customers(id) ON DELETE SET NULL,
-
-  subtotal_cents    INTEGER NOT NULL DEFAULT 0,
-  discount_cents    INTEGER NOT NULL DEFAULT 0,
-  shipping_cents    INTEGER NOT NULL DEFAULT 0,
-  total_cents       INTEGER NOT NULL DEFAULT 0,
-
-  payment_method    TEXT NOT NULL DEFAULT 'pix',
-  payment_details   JSONB,
-
-  status            TEXT NOT NULL DEFAULT 'completed'
-    CHECK (status IN ('completed', 'cancelled', 'refunded')),
-
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_sales_tenant_created  ON public.sales(tenant_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_sales_customer        ON public.sales(customer_id) WHERE customer_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_sales_user            ON public.sales(user_id) WHERE user_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_sales_status          ON public.sales(tenant_id, status);
-
-ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "sales: tenant isolation" ON public.sales;
-CREATE POLICY "sales: tenant isolation"
-  ON public.sales FOR ALL
-  USING (tenant_id = public.tenant_id())
-  WITH CHECK (tenant_id = public.tenant_id());
-
--- ════════════════════════════════════════════════════════════
--- sale_items
--- ════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS public.sale_items (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sale_id           UUID NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-  product_id        UUID,                          -- pode apontar pra products OU parts_catalog (não FK estrita)
-  name              TEXT NOT NULL,                  -- snapshot — preserva histórico mesmo se produto for excluído
-  quantity          NUMERIC(12, 3) NOT NULL,
-  unit_price_cents  INTEGER NOT NULL,
-  subtotal_cents    INTEGER NOT NULL,
-
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_sale_items_sale     ON public.sale_items(sale_id);
-CREATE INDEX IF NOT EXISTS idx_sale_items_product  ON public.sale_items(product_id) WHERE product_id IS NOT NULL;
-
--- RLS via JOIN com sales (sale_items não tem tenant_id próprio)
-ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "sale_items: tenant via sale" ON public.sale_items;
-CREATE POLICY "sale_items: tenant via sale"
-  ON public.sale_items FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.sales s
-      WHERE s.id = sale_items.sale_id
-        AND s.tenant_id = public.tenant_id()
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.sales s
-      WHERE s.id = sale_items.sale_id
-        AND s.tenant_id = public.tenant_id()
-    )
-  );
-
--- ════════════════════════════════════════════════════════════
--- parts_catalog (peças de OS — diferente de products)
--- ════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS public.parts_catalog (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id   UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  sku         TEXT,
-  name        TEXT NOT NULL,
-  cost_cents  INTEGER NOT NULL DEFAULT 0,
-  is_active   BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_parts_catalog_tenant      ON public.parts_catalog(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_parts_catalog_tenant_name ON public.parts_catalog(tenant_id, name);
-
-ALTER TABLE public.parts_catalog ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "parts_catalog: tenant isolation" ON public.parts_catalog;
-CREATE POLICY "parts_catalog: tenant isolation"
-  ON public.parts_catalog FOR ALL
-  USING (tenant_id = public.tenant_id())
-  WITH CHECK (tenant_id = public.tenant_id());
-
--- ════════════════════════════════════════════════════════════
--- tenant_settings (configurações chave-valor por tenant)
--- ════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS public.tenant_settings (
-  tenant_id                  UUID PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
-  stock_control_mode         TEXT NOT NULL DEFAULT 'warn'
-    CHECK (stock_control_mode IN ('off', 'warn', 'block')),
-  fisica_fixed_cost_cents    INTEGER,
-  updated_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.tenant_settings ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "tenant_settings: tenant isolation" ON public.tenant_settings;
-CREATE POLICY "tenant_settings: tenant isolation"
-  ON public.tenant_settings FOR ALL
-  USING (tenant_id = public.tenant_id())
-  WITH CHECK (tenant_id = public.tenant_id());
-
-NOTIFY pgrst, 'reload schema';
-
-
--- ════════════════════════════════════════════════════════════════════════════
--- 001_initial_schema.sql
+-- 001_initial_schema.sql (CheckSmart base)
 -- ════════════════════════════════════════════════════════════════════════════
 -- ============================================================
 -- CheckSmart — 001_initial_schema.sql
@@ -1569,7 +1377,911 @@ VALUES
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 002_stock_movements.sql
+-- CheckSmart 002_disable_status_log_trigger.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ============================================================
+-- Migration 002 — Desabilita trigger duplicado de log de status
+-- ============================================================
+--
+-- Contexto:
+--   A Server Action `update-order-status.ts` já insere explicitamente
+--   em `order_status_logs` (com o campo `notes`). O trigger
+--   `trg_log_order_status` fazia o mesmo insert automaticamente,
+--   resultando em dois registros por mudança de status.
+--
+-- Solução:
+--   Desabilitar o trigger. O insert explícito na Server Action é a
+--   fonte canônica — ele carrega `notes`, `changed_by`, e pode ser
+--   controlado por lógica de negócio (ex: idempotência).
+--
+-- Rollback:
+--   ALTER TABLE public.service_orders ENABLE TRIGGER trg_log_order_status;
+-- ============================================================
+
+ALTER TABLE public.service_orders
+  DISABLE TRIGGER trg_log_order_status;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 003_contract_text.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Adiciona campo de contrato/garantia personalizado ao tenant
+-- Execute no SQL Editor do Supabase
+
+ALTER TABLE public.tenants
+  ADD COLUMN IF NOT EXISTS contract_text TEXT DEFAULT NULL;
+
+-- Pré-popula com o contrato padrão da UÉ CELL IMPORTS
+UPDATE public.tenants SET contract_text =
+'CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE ASSISTÊNCIA TÉCNICA
+
+Cláusula 1 — As partes concordam que os serviços de manutenção, reparo e/ou diagnóstico serão realizados pela UÉ CELL IMPORTS (CNPJ 35.868.361/0001-39), doravante denominada CONTRATADA, no equipamento descrito nesta Ordem de Serviço.
+
+Cláusula 2 — A CONTRATADA não se responsabiliza por dados armazenados no equipamento. O CONTRATANTE declara ter realizado backup antes da entrega, isentando a empresa de qualquer responsabilidade por perda de informações.
+
+Cláusula 3 — Aparelhos com danos por líquidos (água, suor, bebidas) podem apresentar falhas secundárias após o reparo, sem qualquer responsabilidade da CONTRATADA.
+
+Cláusula 4 — Em caso de aparelho inoperante (não liga), não é possível atestar o estado funcional dos componentes. A CONTRATADA se isenta de defeitos ocultos preexistentes não identificáveis sem o funcionamento do aparelho.
+
+Cláusula 5 — Aparelhos deixados por prazo superior a 30 (trinta) dias corridos após a conclusão do serviço ou após a recusa do orçamento poderão ser descartados, sem ônus à CONTRATADA.
+
+Cláusula 6 — A garantia dos serviços prestados é de 90 (noventa) dias, contados a partir da data de entrega ao cliente, cobrindo exclusivamente os defeitos relacionados ao serviço executado, conforme o Código de Defesa do Consumidor (CDC).
+
+Cláusula 7 — Não são cobertos pela garantia: danos causados por quedas, impactos, umidade, mau uso, oxidação, danos causados por carregadores ou acessórios não originais, vírus ou softwares de terceiros após a saída do equipamento.
+
+Cláusula 8 — A garantia será automaticamente cancelada se o equipamento for aberto por terceiros ou submetido a qualquer intervenção não autorizada pela CONTRATADA.
+
+Cláusula 9 — O orçamento aprovado pelo CONTRATANTE (presencialmente, por WhatsApp ou outro meio eletrônico) tem validade de 5 (cinco) dias corridos. Após esse prazo, os valores poderão ser reajustados.
+
+Cláusula 10 — A recusa do orçamento não isenta o CONTRATANTE do pagamento das despesas com diagnóstico, quando estas forem previamente informadas e aceitas.
+
+Cláusula 11 — Peças substituídas e defeituosas serão devolvidas ao CONTRATANTE somente mediante solicitação expressa no ato da abertura da OS. Caso contrário, poderão ser descartadas pela CONTRATADA.
+
+Cláusula 12 — Ao assinar esta Ordem de Serviço, o CONTRATANTE declara estar ciente e de acordo com todas as cláusulas acima e autoriza expressamente a CONTRATADA a realizar o diagnóstico e/ou o reparo descrito.
+
+Cláusula 13 — Fica eleito o foro da Comarca de Aracaju/SE para dirimir quaisquer controvérsias decorrentes deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.
+
+Cláusula 14 — Este contrato é regido pela Lei nº 8.078/1990 (Código de Defesa do Consumidor) e demais legislações aplicáveis à prestação de serviços no Brasil.'
+WHERE contract_text IS NULL;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 004_clean_connectivity_checklist.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Remove itens duplicados e insignificantes da categoria conectividade
+DELETE FROM checklist_items_template
+WHERE category = 'connectivity'
+  AND label_pt IN (
+    'Sinal de rede / chip',
+    'Porta USB / carregamento',
+    'Compartilhamento de Internet (Hotspot)',
+    'Sinal de Rede / Chip',
+    'Wi-Fi',
+    'Bluetooth',
+    'GPS',
+    'NFC',
+    'Conector de Carga (USB-C / Lightning)'
+  );
+
+-- Reinsere conectividade limpa, sem duplicatas
+INSERT INTO checklist_items_template (category, item_key, label_pt, sort_order, is_active)
+VALUES
+  ('connectivity', 'signal_chip',    'Sinal de Rede / Chip',            50, true),
+  ('connectivity', 'wifi',           'Wi-Fi',                           51, true),
+  ('connectivity', 'bluetooth',      'Bluetooth',                       52, true),
+  ('connectivity', 'gps',            'GPS',                             53, true),
+  ('connectivity', 'nfc',            'NFC',                             54, true),
+  ('connectivity', 'charge_port',    'Conector de Carga (USB-C / Lightning)', 55, true);
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 005_parts_catalog.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ── Catálogo de peças por tenant ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS parts_catalog (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name             text NOT NULL,
+  sku              text,
+  supplier         text,
+  cost_cents       integer NOT NULL DEFAULT 0 CHECK (cost_cents >= 0),
+  is_active        boolean NOT NULL DEFAULT true,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_parts_catalog_tenant ON parts_catalog(tenant_id);
+CREATE INDEX idx_parts_catalog_name   ON parts_catalog(tenant_id, name);
+
+ALTER TABLE parts_catalog ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "parts_catalog: tenant isolation"
+  ON parts_catalog FOR ALL
+  USING (tenant_id = (auth.jwt() -> 'app_metadata' ->> 'tenant_id')::uuid);
+
+-- ── Adiciona referência ao catálogo em order_parts ────────────────────────
+ALTER TABLE order_parts
+  ADD COLUMN IF NOT EXISTS catalog_part_id uuid REFERENCES parts_catalog(id) ON DELETE SET NULL;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 006_parts_catalog_purchase_price.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ============================================================
+-- Migration 006 — Adiciona preço de compra ao catálogo de peças
+--
+-- Contexto: parts_catalog tinha apenas cost_cents (preço de custo).
+-- Adicionamos purchase_price_cents para separar:
+--   • purchase_price_cents → valor pago ao fornecedor
+--   • cost_cents           → valor usado para calcular lucro
+--
+-- IMPORTANTE: Aplique ANTES desta migration a 005_parts_catalog.sql,
+-- caso ainda não tenha sido aplicada no seu Supabase.
+-- ============================================================
+
+ALTER TABLE public.parts_catalog
+  ADD COLUMN IF NOT EXISTS purchase_price_cents integer NOT NULL DEFAULT 0
+    CHECK (purchase_price_cents >= 0);
+
+COMMENT ON COLUMN public.parts_catalog.purchase_price_cents
+  IS 'Preço pago ao fornecedor (centavos). Usado para controle de estoque/negociação.';
+
+COMMENT ON COLUMN public.parts_catalog.cost_cents
+  IS 'Preço de custo interno (centavos). Usado para cálculo de lucro nas OS.';
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 007_parts_sale_price.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 007: adiciona coluna sale_price_cents na tabela parts_catalog
+-- Representa o preço cobrado do cliente pela peça
+
+ALTER TABLE parts_catalog
+  ADD COLUMN IF NOT EXISTS sale_price_cents INTEGER NOT NULL DEFAULT 0;
+
+COMMENT ON COLUMN parts_catalog.sale_price_cents IS 'Preço de venda da peça ao cliente (em centavos)';
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 008_order_parts_prices.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 008: adiciona preço de compra e preço de venda em order_parts
+
+ALTER TABLE order_parts
+  ADD COLUMN IF NOT EXISTS unit_purchase_price_cents INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS unit_sale_price_cents     INTEGER NOT NULL DEFAULT 0;
+
+COMMENT ON COLUMN order_parts.unit_purchase_price_cents IS 'Preço pago ao fornecedor pela peça (em centavos)';
+COMMENT ON COLUMN order_parts.unit_sale_price_cents     IS 'Preço cobrado do cliente pela peça (em centavos)';
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 009_parts_payment_and_sale_total.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 009: forma de pagamento em order_parts + total com peças em service_orders
+-- Roda no Supabase SQL Editor
+
+-- 1. Adiciona payment_method em order_parts
+ALTER TABLE public.order_parts
+  ADD COLUMN IF NOT EXISTS payment_method TEXT;
+
+-- 2. Adiciona parts_sale_cents em service_orders para rastrear total de venda de peças
+ALTER TABLE public.service_orders
+  ADD COLUMN IF NOT EXISTS parts_sale_cents INTEGER NOT NULL DEFAULT 0;
+
+-- 3. Recria total_price_cents incluindo parts_sale_cents
+--    GENERATED ALWAYS AS não pode ser alterada in-place — dropa e recria.
+ALTER TABLE public.service_orders DROP COLUMN total_price_cents;
+ALTER TABLE public.service_orders
+  ADD COLUMN total_price_cents INTEGER
+    GENERATED ALWAYS AS (
+      service_price_cents - discount_cents + parts_sale_cents
+    ) STORED;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 010_signature_b64.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 010: armazena base64 das assinaturas diretamente no banco
+-- Permite uso no PDF sem depender de URLs do Storage que podem expirar.
+
+ALTER TABLE public.service_orders
+  ADD COLUMN IF NOT EXISTS entry_signature_b64 TEXT;
+
+ALTER TABLE public.service_orders
+  ADD COLUMN IF NOT EXISTS exit_signature_b64 TEXT;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 011_warranty_term.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 011: campo warranty_term na tabela tenants
+-- Texto do Termo de Garantia editável pelo tenant, impresso como página extra no PDF.
+
+ALTER TABLE public.tenants
+  ADD COLUMN IF NOT EXISTS warranty_term TEXT;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 012_fix_hook_permissions.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════
+-- Migration 012: Corrige permissões do custom_access_token_hook
+-- ════════════════════════════════════════════════════════════
+--
+-- PROBLEMA:
+--   O hook estava sem GRANT SELECT em tenant_members para supabase_auth_admin.
+--   Quando chamado, o PostgreSQL negava o acesso à tabela (permissão + RLS).
+--   O bloco EXCEPTION capturava silenciosamente e retornava o evento original
+--   sem injetar tenant_id / tenant_role no JWT.
+--
+--   Para owners: não era visível porque o Supabase preserva os valores
+--   de raw_app_meta_data.tenant_id no JWT mesmo quando o hook falha
+--   (os dados foram setados manualmente na criação do tenant).
+--
+--   Para funcionários novos: raw_app_meta_data está vazio → sem hook
+--   funcionando, o JWT nunca recebe tenant_id → redirecionados p/ /onboarding.
+--
+-- SOLUÇÃO:
+--   1. Concede SELECT em tenant_members para supabase_auth_admin
+--   2. Recria o hook com SET LOCAL row_security = off como segunda camada
+--      de segurança (bypassa RLS independente de grants futuros)
+-- ════════════════════════════════════════════════════════════
+
+-- ── 1. Permissões necessárias para o hook ────────────────────────────────
+GRANT USAGE  ON SCHEMA public               TO supabase_auth_admin;
+GRANT SELECT ON TABLE  public.tenant_members TO supabase_auth_admin;
+
+-- ── 2. Recria o hook com row_security desativado ─────────────────────────
+--
+-- SET LOCAL row_security = off: desativa RLS para esta execução de função,
+-- garantindo que o hook possa ler qualquer linha de tenant_members
+-- independentemente de políticas RLS ativas.
+CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id      UUID;
+  v_tenant_id    UUID;
+  v_tenant_role  TEXT;
+  v_claims       jsonb;
+  v_app_metadata jsonb;
+BEGIN
+  -- Bypass RLS: hook precisa ler dados de qualquer usuário do sistema
+  SET LOCAL row_security = off;
+
+  -- 1. Extrai o user_id do evento recebido pelo hook
+  v_user_id := (event ->> 'user_id')::UUID;
+
+  -- 2. Busca o tenant ativo do usuário na tabela tenant_members.
+  --    Critério de desempate quando há múltiplos tenants:
+  --    prioridade pelo role mais alto, depois pelo mais antigo (joined_at).
+  SELECT tm.tenant_id, tm.role
+  INTO   v_tenant_id, v_tenant_role
+  FROM   public.tenant_members tm
+  WHERE  tm.user_id   = v_user_id
+    AND  tm.is_active = TRUE
+  ORDER BY
+    CASE tm.role
+      WHEN 'owner'      THEN 1
+      WHEN 'manager'    THEN 2
+      WHEN 'technician' THEN 3
+      WHEN 'viewer'     THEN 4
+      ELSE                   5
+    END ASC,
+    tm.joined_at ASC NULLS LAST
+  LIMIT 1;
+
+  -- 3. Prepara claims e app_metadata atuais (preserva campos existentes)
+  v_claims       := event -> 'claims';
+  v_app_metadata := COALESCE(v_claims -> 'app_metadata', '{}'::jsonb);
+
+  -- 4. Injeta tenant_id e tenant_role SOMENTE se o usuário tiver um tenant.
+  --    Usuários sem tenant (recém-cadastrados) recebem JWT sem esses campos
+  --    e o middleware Next.js os redireciona para /onboarding.
+  IF v_tenant_id IS NOT NULL THEN
+    v_app_metadata := v_app_metadata
+      || jsonb_build_object(
+           'tenant_id',   v_tenant_id::TEXT,
+           'tenant_role', v_tenant_role
+         );
+  END IF;
+
+  -- 5. Reconstrói o evento com os claims atualizados e retorna
+  v_claims := jsonb_set(v_claims, '{app_metadata}', v_app_metadata);
+  RETURN jsonb_set(event, '{claims}', v_claims);
+
+EXCEPTION WHEN OTHERS THEN
+  -- Em caso de erro inesperado, retorna o evento original sem modificação.
+  -- O usuário consegue logar, mas sem tenant_id (RLS bloqueará os dados).
+  RAISE WARNING '[custom_access_token_hook] Erro ao processar user_id=%: %', v_user_id, SQLERRM;
+  RETURN event;
+END;
+$$;
+
+-- ── 3. Re-aplica grants de execução após recriar a função ────────────────
+GRANT  EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
+REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, anon, public;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 013_member_permissions.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════
+-- Migration 013: Permissões personalizadas por membro
+-- ════════════════════════════════════════════════════════════
+--
+-- Adiciona coluna `permissions` JSONB em tenant_members e atualiza
+-- o custom_access_token_hook para injetar as permissões resolvidas
+-- no JWT (custom override ou defaults por role).
+--
+-- Estrutura do JSON:
+--   { "orders": true, "customers": true, "financial": false,
+--     "reports": false, "settings": false }
+--
+-- Quando {} (vazio, default), o hook resolve pelo role:
+--   owner      → tudo true
+--   manager    → orders, customers, financial, reports = true; settings = false
+--   technician → orders, customers = true; demais = false
+-- ════════════════════════════════════════════════════════════
+
+-- ── 1. Coluna permissions ─────────────────────────────────────────────────
+ALTER TABLE public.tenant_members
+  ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}';
+
+-- ── 2. Recria o hook injetando também as permissões resolvidas ────────────
+-- Nota: usa dollar quoting ($func$) para evitar escaping de aspas simples.
+-- Nota: postgres tem BYPASSRLS=true → SECURITY DEFINER já bypassa RLS
+--       sem necessidade de SET LOCAL row_security = off.
+CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $func$
+DECLARE
+  v_user_id      UUID;
+  v_tenant_id    UUID;
+  v_tenant_role  TEXT;
+  v_permissions  JSONB;
+  v_claims       jsonb;
+  v_app_metadata jsonb;
+BEGIN
+  v_user_id := (event ->> 'user_id')::UUID;
+
+  SELECT tm.tenant_id, tm.role, tm.permissions
+  INTO   v_tenant_id, v_tenant_role, v_permissions
+  FROM   public.tenant_members tm
+  WHERE  tm.user_id   = v_user_id
+    AND  tm.is_active = TRUE
+  ORDER BY
+    CASE tm.role
+      WHEN 'owner'      THEN 1
+      WHEN 'manager'    THEN 2
+      WHEN 'technician' THEN 3
+      WHEN 'viewer'     THEN 4
+      ELSE                   5
+    END ASC,
+    tm.joined_at ASC NULLS LAST
+  LIMIT 1;
+
+  v_claims       := event -> 'claims';
+  v_app_metadata := COALESCE(v_claims -> 'app_metadata', '{}'::jsonb);
+
+  IF v_tenant_id IS NOT NULL THEN
+    -- Resolve permissões efetivas: custom override ou defaults por role
+    IF v_permissions IS NULL OR v_permissions = '{}'::jsonb THEN
+      IF v_tenant_role = 'owner' THEN
+        v_permissions := '{"orders":true,"customers":true,"financial":true,"reports":true,"settings":true}'::jsonb;
+      ELSIF v_tenant_role = 'manager' THEN
+        v_permissions := '{"orders":true,"customers":true,"financial":true,"reports":true,"settings":false}'::jsonb;
+      ELSE
+        v_permissions := '{"orders":true,"customers":true,"financial":false,"reports":false,"settings":false}'::jsonb;
+      END IF;
+    END IF;
+
+    v_app_metadata := v_app_metadata
+      || jsonb_build_object(
+           'tenant_id',   v_tenant_id::TEXT,
+           'tenant_role', v_tenant_role,
+           'permissions', v_permissions
+         );
+  END IF;
+
+  v_claims := jsonb_set(v_claims, '{app_metadata}', v_app_metadata);
+  RETURN jsonb_set(event, '{claims}', v_claims);
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING '[custom_access_token_hook] Erro ao processar user_id=%: %', v_user_id, SQLERRM;
+  RETURN event;
+END;
+$func$;
+
+GRANT  EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
+REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, anon, public;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 014_order_devices.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ============================================================
+-- CheckSmart — 014_order_devices.sql
+-- Multi-aparelho por OS
+--
+-- O que esta migration faz:
+-- 1. Cria tabela order_devices (aparelhos da OS)
+-- 2. Adiciona device_id em checklist_items e order_photos
+-- 3. Migra dados existentes: cada OS vira 1 device (position=1)
+-- 4. Vincula checklist e fotos ao device migrado
+-- 5. Remove constraint UNIQUE antiga do checklist (incompatível)
+-- 6. Adiciona nova constraint que inclui device_id
+-- 7. RLS, índices e trigger updated_at
+-- ============================================================
+
+
+-- ════════════════════════════════════════════════════════════
+-- 1. TABELA order_devices
+-- ════════════════════════════════════════════════════════════
+
+CREATE TABLE public.order_devices (
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id           UUID        NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  order_id            UUID        NOT NULL REFERENCES public.service_orders(id) ON DELETE CASCADE,
+  position            INT         NOT NULL DEFAULT 1 CHECK (position >= 1),
+
+  -- Dados do aparelho (mesmos campos que service_orders, desnormalizados)
+  brand_id            UUID        REFERENCES public.device_brands(id) ON DELETE SET NULL,
+  model_id            UUID        REFERENCES public.device_models(id) ON DELETE SET NULL,
+  brand_name          TEXT        NOT NULL DEFAULT '',
+  model_name          TEXT        NOT NULL DEFAULT '',
+  color               TEXT,
+  storage             TEXT,
+  imei                TEXT,
+  serial_number       TEXT,
+  password            TEXT,
+  password_type       TEXT
+                      CHECK (password_type IN ('pin', 'pattern', 'password', 'none', 'unknown')),
+
+  powers_on           BOOLEAN     NOT NULL DEFAULT TRUE,
+  physical_condition  TEXT        NOT NULL DEFAULT 'good'
+                      CHECK (physical_condition IN ('like_new', 'good', 'fair', 'damaged', 'heavily_damaged')),
+  physical_notes      TEXT,
+
+  -- Valor individual deste aparelho
+  service_price_cents INT         NOT NULL DEFAULT 0 CHECK (service_price_cents >= 0),
+
+  notes               TEXT,
+
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE (order_id, position)
+);
+
+
+-- ════════════════════════════════════════════════════════════
+-- 2. DEVICE_ID EM CHECKLIST_ITEMS E ORDER_PHOTOS
+-- ════════════════════════════════════════════════════════════
+
+ALTER TABLE public.checklist_items
+  ADD COLUMN device_id UUID REFERENCES public.order_devices(id) ON DELETE CASCADE;
+
+ALTER TABLE public.order_photos
+  ADD COLUMN device_id UUID REFERENCES public.order_devices(id) ON DELETE CASCADE;
+
+
+-- ════════════════════════════════════════════════════════════
+-- 3. MIGRAR DADOS EXISTENTES
+--    Cada OS atual tem exatamente 1 aparelho → position = 1
+-- ════════════════════════════════════════════════════════════
+
+INSERT INTO public.order_devices (
+  id, tenant_id, order_id, position,
+  brand_id, model_id, brand_name, model_name,
+  color, storage, imei, serial_number,
+  password, password_type,
+  powers_on, physical_condition, physical_notes,
+  service_price_cents,
+  created_at, updated_at
+)
+SELECT
+  gen_random_uuid(),
+  tenant_id,
+  id             AS order_id,
+  1              AS position,
+  brand_id,
+  model_id,
+  COALESCE(brand_name, '') AS brand_name,
+  COALESCE(model_name, '') AS model_name,
+  color,
+  storage,
+  imei,
+  serial_number,
+  password,
+  password_type,
+  powers_on,
+  physical_condition,
+  COALESCE(physical_notes, '') AS physical_notes,
+  service_price_cents,
+  created_at,
+  updated_at
+FROM public.service_orders;
+
+
+-- ════════════════════════════════════════════════════════════
+-- 4. VINCULAR CHECKLIST E FOTOS AO DEVICE MIGRADO
+-- ════════════════════════════════════════════════════════════
+
+UPDATE public.checklist_items ci
+SET device_id = od.id
+FROM public.order_devices od
+WHERE od.order_id = ci.order_id
+  AND od.position = 1;
+
+UPDATE public.order_photos op
+SET device_id = od.id
+FROM public.order_devices od
+WHERE od.order_id = op.order_id
+  AND od.position = 1;
+
+
+-- ════════════════════════════════════════════════════════════
+-- 5. ATUALIZAR CONSTRAINT UNIQUE DO CHECKLIST
+--    A constraint antiga era (order_id, phase, item_key).
+--    Com multi-device vira (order_id, device_id, phase, item_key).
+-- ════════════════════════════════════════════════════════════
+
+ALTER TABLE public.checklist_items
+  DROP CONSTRAINT IF EXISTS checklist_items_order_id_phase_item_key_key;
+
+ALTER TABLE public.checklist_items
+  ADD CONSTRAINT checklist_items_device_phase_item_key
+  UNIQUE (order_id, device_id, phase, item_key);
+
+-- order_photos: a constraint antiga era (order_id, phase, position).
+-- Com multi-device vira (order_id, device_id, phase, position).
+ALTER TABLE public.order_photos
+  DROP CONSTRAINT IF EXISTS order_photos_order_id_phase_position_key;
+
+ALTER TABLE public.order_photos
+  ADD CONSTRAINT order_photos_device_phase_position
+  UNIQUE (order_id, device_id, phase, position);
+
+
+-- ════════════════════════════════════════════════════════════
+-- 6. RLS
+-- ════════════════════════════════════════════════════════════
+
+ALTER TABLE public.order_devices ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "order_devices: tenant select"
+  ON public.order_devices FOR SELECT
+  USING (tenant_id = public.tenant_id());
+
+CREATE POLICY "order_devices: tenant insert"
+  ON public.order_devices FOR INSERT
+  WITH CHECK (tenant_id = public.tenant_id());
+
+CREATE POLICY "order_devices: tenant update"
+  ON public.order_devices FOR UPDATE
+  USING (tenant_id = public.tenant_id());
+
+CREATE POLICY "order_devices: tenant delete"
+  ON public.order_devices FOR DELETE
+  USING (tenant_id = public.tenant_id());
+
+-- Permite acesso público (sem auth) via service_role para remote-sign
+-- (service_role bypassa RLS por design — não precisa de policy adicional)
+
+
+-- ════════════════════════════════════════════════════════════
+-- 7. ÍNDICES
+-- ════════════════════════════════════════════════════════════
+
+CREATE INDEX idx_order_devices_order  ON public.order_devices(order_id);
+CREATE INDEX idx_order_devices_tenant ON public.order_devices(tenant_id, order_id);
+CREATE INDEX idx_checklist_device     ON public.checklist_items(device_id);
+CREATE INDEX idx_photos_device        ON public.order_photos(device_id);
+
+
+-- ════════════════════════════════════════════════════════════
+-- 8. TRIGGER updated_at
+-- ════════════════════════════════════════════════════════════
+
+CREATE TRIGGER trg_touch_order_devices
+  BEFORE UPDATE ON public.order_devices
+  FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 015_unlimited_photos.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 015: Remove 4-photo limit per phase
+-- Allows unlimited photos per entry/exit phase on a service order.
+
+-- Drop the CHECK constraint that limited position to 1-4
+ALTER TABLE public.order_photos
+  DROP CONSTRAINT IF EXISTS order_photos_position_check;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 016_order_videos.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 016: order_videos table
+-- Stores entry/exit videos for service orders with signed URLs (like order_photos).
+
+CREATE TABLE public.order_videos (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     UUID        NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  order_id      UUID        NOT NULL REFERENCES public.service_orders(id) ON DELETE CASCADE,
+  device_id     UUID        REFERENCES public.order_devices(id) ON DELETE CASCADE,
+  storage_path  TEXT        NOT NULL,
+  storage_url   TEXT        NOT NULL,
+  phase         TEXT        NOT NULL CHECK (phase IN ('entry', 'exit')),
+  position      INT         NOT NULL,
+  uploaded_by   UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_order_videos_order_id  ON public.order_videos (order_id);
+CREATE INDEX idx_order_videos_tenant_id ON public.order_videos (tenant_id);
+
+ALTER TABLE public.order_videos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Videos: tenant isolation"
+  ON public.order_videos FOR SELECT
+  USING (tenant_id = public.tenant_id());
+
+CREATE POLICY "Videos: technician and above can insert"
+  ON public.order_videos FOR INSERT
+  WITH CHECK (
+    tenant_id = public.tenant_id()
+    AND public.tenant_role() IN ('owner', 'manager', 'technician')
+  );
+
+CREATE POLICY "Videos: owner and manager can delete"
+  ON public.order_videos FOR DELETE
+  USING (
+    tenant_id = public.tenant_id()
+    AND public.tenant_role() IN ('owner', 'manager')
+  );
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 017_customer_extra_fields.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- Migration 017: campos extras na tabela customers (espelho do Bling)
+ALTER TABLE public.customers
+  ADD COLUMN IF NOT EXISTS birth_date       DATE,
+  ADD COLUMN IF NOT EXISTS trade_name       TEXT,
+  ADD COLUMN IF NOT EXISTS phone            TEXT,
+  ADD COLUMN IF NOT EXISTS website          TEXT,
+  ADD COLUMN IF NOT EXISTS person_type      TEXT DEFAULT 'fisica',
+  ADD COLUMN IF NOT EXISTS ie_rg            TEXT,
+  ADD COLUMN IF NOT EXISTS is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS marital_status   TEXT,
+  ADD COLUMN IF NOT EXISTS profession       TEXT,
+  ADD COLUMN IF NOT EXISTS gender           TEXT,
+  ADD COLUMN IF NOT EXISTS father_name      TEXT,
+  ADD COLUMN IF NOT EXISTS father_cpf       TEXT,
+  ADD COLUMN IF NOT EXISTS mother_name      TEXT,
+  ADD COLUMN IF NOT EXISTS mother_cpf       TEXT,
+  ADD COLUMN IF NOT EXISTS salesperson      TEXT,
+  ADD COLUMN IF NOT EXISTS contact_type     TEXT,
+  ADD COLUMN IF NOT EXISTS nfe_email        TEXT,
+  ADD COLUMN IF NOT EXISTS credit_limit_cents INTEGER NOT NULL DEFAULT 0;
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- CheckSmart 018_order_share_tokens.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║  018 — Tokens públicos pra compartilhar PDF da OS via WhatsApp/Email     ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+--
+-- Cria tabela `service_order_share_tokens` pra gerar links públicos
+-- (sem autenticação) do PDF da OS. Cliente abre o link no celular/desktop
+-- e baixa o PDF. Token aleatório, expira em 30 dias.
+--
+-- Uso: WhatsApp (link na mensagem wa.me) e Email (botão "Abrir online" no
+-- corpo, complementando o anexo PDF estático).
+
+CREATE TABLE IF NOT EXISTS public.service_order_share_tokens (
+  token        TEXT PRIMARY KEY,
+  order_id     UUID NOT NULL REFERENCES public.service_orders(id) ON DELETE CASCADE,
+  tenant_id    UUID NOT NULL REFERENCES public.tenants(id)        ON DELETE CASCADE,
+  expires_at   TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '30 days'),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_so_share_tokens_order    ON public.service_order_share_tokens(order_id);
+CREATE INDEX IF NOT EXISTS idx_so_share_tokens_expires  ON public.service_order_share_tokens(expires_at);
+
+-- RLS: ninguém lê/escreve via cliente Supabase. Acesso só via admin client
+-- (route handler valida token antes de gerar PDF; server action cria via service_role).
+ALTER TABLE public.service_order_share_tokens ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "service_order_share_tokens: deny all" ON public.service_order_share_tokens;
+CREATE POLICY "service_order_share_tokens: deny all"
+  ON public.service_order_share_tokens FOR ALL
+  USING (false);
+
+NOTIFY pgrst, 'reload schema';
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 001b_smarterp_tables.sql
+-- ════════════════════════════════════════════════════════════════════════════
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║  001b — Tabelas core do SmartERP (products, sales, parts_catalog)        ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+--
+-- Complemento do 001_initial_schema.sql (que vem do CheckSmart e cria
+-- tenants, customers, service_orders etc). Aqui criamos as tabelas que
+-- as migrations 002-037 do SmartERP assumem existir mas que historicamente
+-- foram criadas direto no SQL editor sem virar migration:
+--   - products
+--   - sales
+--   - sale_items
+--   - parts_catalog
+--
+-- IMPORTANTE: campos que foram adicionados via migrations posteriores
+-- (ex: products.category, sales.sale_channel) NÃO entram aqui — vão ser
+-- adicionados via ALTER TABLE quando as migrations 002+ rodarem em ordem.
+
+-- ════════════════════════════════════════════════════════════
+-- products
+-- ════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS public.products (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id             UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+
+  code                  TEXT,
+  name                  TEXT NOT NULL,
+  brand                 TEXT,
+  format                TEXT NOT NULL DEFAULT 'simples',
+  condition             TEXT NOT NULL DEFAULT 'novo',
+  gtin                  TEXT,
+
+  -- Preços em centavos
+  purchase_price_cents  INTEGER NOT NULL DEFAULT 0,
+  cost_cents            INTEGER NOT NULL DEFAULT 0,
+  price_cents           INTEGER NOT NULL DEFAULT 0,
+  unit                  TEXT NOT NULL DEFAULT 'Un',
+
+  -- Estoque
+  stock_qty             NUMERIC(12, 3) NOT NULL DEFAULT 0,
+  stock_min             NUMERIC(12, 3) NOT NULL DEFAULT 0,
+  stock_max             NUMERIC(12, 3) NOT NULL DEFAULT 0,
+  location              TEXT,
+  supplier              TEXT,
+
+  image_urls            TEXT[] NOT NULL DEFAULT '{}',
+  description           TEXT,
+  active                BOOLEAN NOT NULL DEFAULT true,
+
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_products_tenant       ON public.products(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_products_tenant_name  ON public.products(tenant_id, name);
+CREATE INDEX IF NOT EXISTS idx_products_tenant_code  ON public.products(tenant_id, code) WHERE code IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_products_tenant_gtin  ON public.products(tenant_id, gtin) WHERE gtin IS NOT NULL;
+
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "products: tenant isolation" ON public.products;
+CREATE POLICY "products: tenant isolation"
+  ON public.products FOR ALL
+  USING (tenant_id = public.tenant_id())
+  WITH CHECK (tenant_id = public.tenant_id());
+
+-- ════════════════════════════════════════════════════════════
+-- sales
+-- ════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS public.sales (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id           UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  customer_id       UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+
+  subtotal_cents    INTEGER NOT NULL DEFAULT 0,
+  discount_cents    INTEGER NOT NULL DEFAULT 0,
+  shipping_cents    INTEGER NOT NULL DEFAULT 0,
+  total_cents       INTEGER NOT NULL DEFAULT 0,
+
+  payment_method    TEXT NOT NULL DEFAULT 'pix',
+  payment_details   JSONB,
+
+  status            TEXT NOT NULL DEFAULT 'completed'
+    CHECK (status IN ('completed', 'cancelled', 'refunded')),
+
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_tenant_created  ON public.sales(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_customer        ON public.sales(customer_id) WHERE customer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sales_user            ON public.sales(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sales_status          ON public.sales(tenant_id, status);
+
+ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "sales: tenant isolation" ON public.sales;
+CREATE POLICY "sales: tenant isolation"
+  ON public.sales FOR ALL
+  USING (tenant_id = public.tenant_id())
+  WITH CHECK (tenant_id = public.tenant_id());
+
+-- ════════════════════════════════════════════════════════════
+-- sale_items
+-- ════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS public.sale_items (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sale_id           UUID NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
+  product_id        UUID,                          -- pode apontar pra products OU parts_catalog (não FK estrita)
+  name              TEXT NOT NULL,                  -- snapshot — preserva histórico mesmo se produto for excluído
+  quantity          NUMERIC(12, 3) NOT NULL,
+  unit_price_cents  INTEGER NOT NULL,
+  subtotal_cents    INTEGER NOT NULL,
+
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sale_items_sale     ON public.sale_items(sale_id);
+CREATE INDEX IF NOT EXISTS idx_sale_items_product  ON public.sale_items(product_id) WHERE product_id IS NOT NULL;
+
+-- RLS via JOIN com sales (sale_items não tem tenant_id próprio)
+ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "sale_items: tenant via sale" ON public.sale_items;
+CREATE POLICY "sale_items: tenant via sale"
+  ON public.sale_items FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.sales s
+      WHERE s.id = sale_items.sale_id
+        AND s.tenant_id = public.tenant_id()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.sales s
+      WHERE s.id = sale_items.sale_id
+        AND s.tenant_id = public.tenant_id()
+    )
+  );
+
+-- ════════════════════════════════════════════════════════════
+-- tenant_settings (configurações chave-valor por tenant)
+-- ════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS public.tenant_settings (
+  tenant_id                  UUID PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+  stock_control_mode         TEXT NOT NULL DEFAULT 'warn'
+    CHECK (stock_control_mode IN ('off', 'warn', 'block')),
+  fisica_fixed_cost_cents    INTEGER,
+  updated_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.tenant_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_settings: tenant isolation" ON public.tenant_settings;
+CREATE POLICY "tenant_settings: tenant isolation"
+  ON public.tenant_settings FOR ALL
+  USING (tenant_id = public.tenant_id())
+  WITH CHECK (tenant_id = public.tenant_id());
+
+NOTIFY pgrst, 'reload schema';
+
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- SmartERP 002_stock_movements.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 002 — stock_movements
@@ -1668,7 +2380,7 @@ GROUP BY product_id, tenant_id;
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 003_add_category_to_products.sql
+-- SmartERP 003_add_category_to_products.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- Migration 003 — adiciona coluna category à tabela products
 
@@ -1678,7 +2390,7 @@ CREATE INDEX IF NOT EXISTS idx_products_category ON products (category);
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 004_product_extra_fields.sql
+-- SmartERP 004_product_extra_fields.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- Migration 004 — campos extras no produto (formato, condição, GTIN, peso, dimensões, estoque min/max, localização)
 
@@ -1696,7 +2408,7 @@ ALTER TABLE products
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 005_product_gross_weight.sql
+-- SmartERP 005_product_gross_weight.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- Migration 005 — peso bruto separado do peso líquido
 
@@ -1705,7 +2417,7 @@ ALTER TABLE products
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 006_stock_movements_moved_at.sql
+-- SmartERP 006_stock_movements_moved_at.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- Migration 006 — data de negócio e depósito nos lançamentos de estoque
 
@@ -1719,7 +2431,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_movements_moved_at
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 007_customer_origin.sql
+-- SmartERP 007_customer_origin.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- Migration 007 — origem do cliente ("Como nos conheceu?")
 -- Campo opcional em customers. É a fonte única usada por PhoneSmart e CheckSmart
@@ -1754,7 +2466,7 @@ COMMENT ON COLUMN customers.origin IS
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 008_standardize_os_status.sql
+-- SmartERP 008_standardize_os_status.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 008 — padronizar status de service_orders em inglês
@@ -1797,7 +2509,7 @@ SELECT status, COUNT(*) as total
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 009_merge_consumidor_final.sql
+-- SmartERP 009_merge_consumidor_final.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 009 — unificar múltiplos "Consumidor Final" em um só
@@ -1909,7 +2621,7 @@ SELECT tenant_id, COUNT(*) as total
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 010_diagnostico_duplicados.sql
+-- SmartERP 010_diagnostico_duplicados.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 010 — DIAGNÓSTICO de clientes duplicados (só SELECTs)
@@ -2007,7 +2719,7 @@ SELECT
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 011_recreate_whatsapp_unique_index.sql
+-- SmartERP 011_recreate_whatsapp_unique_index.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 011 — recriar índice único de WhatsApp por tenant
@@ -2062,7 +2774,7 @@ SELECT
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 012_sale_items_cost_snapshot.sql
+-- SmartERP 012_sale_items_cost_snapshot.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 012 — snapshot de custo em sale_items
@@ -2107,7 +2819,7 @@ SELECT
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 013_fix_516_clientes_sem_data.sql
+-- SmartERP 013_fix_516_clientes_sem_data.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 013 — corrige 516 clientes sem "cliente desde" no Bling
@@ -2151,7 +2863,7 @@ SELECT
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 014_meta_ads_credentials.sql
+-- SmartERP 014_meta_ads_credentials.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 014 — credenciais do Meta Ads por tenant
@@ -2199,7 +2911,7 @@ COMMENT ON COLUMN meta_ads_credentials.ad_account_id  IS 'Formato act_XXXXXXXXX 
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 015_meta_ads_multi_account.sql
+-- SmartERP 015_meta_ads_multi_account.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 015 — múltiplas contas Meta Ads + código de campanha no cliente
@@ -2302,7 +3014,7 @@ COMMENT ON COLUMN meta_ads_credentials.ad_account_id IS
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 016_meta_ads_alerts.sql
+-- SmartERP 016_meta_ads_alerts.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 016 — Alertas de Meta Ads
@@ -2417,7 +3129,7 @@ COMMENT ON COLUMN meta_ads_alert_events.dismissed_at IS 'Marcado quando o usuár
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 017_sales_channels.sql
+-- SmartERP 017_sales_channels.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 017 — Canal da venda + modalidade de entrega
@@ -2514,7 +3226,7 @@ COMMENT ON COLUMN service_orders.delivery_type IS
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 018_tenant_fixed_costs.sql
+-- SmartERP 018_tenant_fixed_costs.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration 018 — Custo fixo mensal da loja física
@@ -2544,7 +3256,7 @@ COMMENT ON COLUMN tenant_settings.fisica_fixed_cost_cents IS
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 019_tenants_signup.sql
+-- SmartERP 019_tenants_signup.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  019 — Tenants & Signup automático                                       ║
@@ -2641,7 +3353,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 020_subscriptions_per_product.sql
+-- SmartERP 020_subscriptions_per_product.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  020 — Subscriptions por produto                                         ║
@@ -2731,7 +3443,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 021_subscriptions_status_compat.sql
+-- SmartERP 021_subscriptions_status_compat.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  021 — Compatibilidade com CHECK constraint de status                    ║
@@ -2785,7 +3497,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 022_tenant_invites.sql
+-- SmartERP 022_tenant_invites.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  022 — Tenant invites (multi-usuário no tenant)                          ║
@@ -2857,7 +3569,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 023_notifications.sql
+-- SmartERP 023_notifications.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  023 — Notifications in-app                                              ║
@@ -2927,7 +3639,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 024_asaas_integration.sql
+-- SmartERP 024_asaas_integration.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  024 — Asaas integration                                                 ║
@@ -3026,7 +3738,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 025_drop_old_tenant_unique.sql
+-- SmartERP 025_drop_old_tenant_unique.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  025 — Remove constraint UNIQUE antiga em subscriptions(tenant_id)       ║
@@ -3049,7 +3761,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 026_pending_plan.sql
+-- SmartERP 026_pending_plan.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  026 — Downgrade agendado pro próximo ciclo                              ║
@@ -3075,7 +3787,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 027_recurring_expenses.sql
+-- SmartERP 027_recurring_expenses.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  027 — Recurring expenses (custos fixos detalhados)                      ║
@@ -3152,7 +3864,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 028_tenant_member_permissions.sql
+-- SmartERP 028_tenant_member_permissions.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  028 — Permissões por módulo pra funcionários                            ║
@@ -3212,7 +3924,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 029_admin_actions_log.sql
+-- SmartERP 029_admin_actions_log.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  029 — Audit log de ações administrativas                                ║
@@ -3244,7 +3956,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 030_tenant_invites_employee_role.sql
+-- SmartERP 030_tenant_invites_employee_role.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  030 — tenant_invites aceita role='employee'                             ║
@@ -3265,7 +3977,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 031_cash_sessions.sql
+-- SmartERP 031_cash_sessions.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  031 — Sessões de caixa (abrir / fechar / auto-fechar)                   ║
@@ -3331,7 +4043,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 032_fiscal_module.sql
+-- SmartERP 032_fiscal_module.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  032 — Módulo Fiscal (NF-e, NFC-e, NFS-e via Focus NFe)                  ║
@@ -3517,7 +4229,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 033_comprovante_venda.sql
+-- SmartERP 033_comprovante_venda.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  033 — Comprovante de Venda + Termo de Garantia                          ║
@@ -3629,7 +4341,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 034_tenant_contact.sql
+-- SmartERP 034_tenant_contact.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  034 — Tenant: contato institucional pra cabeçalho de comprovantes       ║
@@ -3652,7 +4364,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 035_sale_customer_origin.sql
+-- SmartERP 035_sale_customer_origin.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  035 — sales.customer_origin                                             ║
@@ -3682,7 +4394,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 036_variable_expenses.sql
+-- SmartERP 036_variable_expenses.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  036 — Variable Expenses (gastos variaveis)                              ║
@@ -3728,7 +4440,7 @@ NOTIFY pgrst, 'reload schema';
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 037_birthdays.sql
+-- SmartERP 037_birthdays.sql
 -- ════════════════════════════════════════════════════════════════════════════
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║  037 — Aniversariantes (modulo /aniversariantes)                         ║

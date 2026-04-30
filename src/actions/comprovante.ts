@@ -22,7 +22,7 @@ type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL
       || process.env.APP_URL
-      || 'https://app.gestaophonesmart.online'
+      || 'https://phonesmart.vercel.app'
 }
 
 // ──────────────────────────────────────────────────────────────────────────

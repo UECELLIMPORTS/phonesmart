@@ -5,7 +5,7 @@
  * a Focus envia POST pra esse endpoint com o payload completo.
  *
  * Configuração no painel da Focus NFe:
- *   URL: https://app.gestaophonesmart.online/api/webhooks/focusnfe?secret=XXX
+ *   URL: https://phonesmart.vercel.app/api/webhooks/focusnfe?secret=XXX
  *   Eventos: TODOS (NFe, NFC-e, NFS-e — autorização, cancelamento, etc)
  *
  * Auth: query param `secret` deve bater com env FOCUS_WEBHOOK_SECRET.

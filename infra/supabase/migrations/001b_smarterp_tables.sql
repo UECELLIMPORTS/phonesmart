@@ -140,31 +140,6 @@ CREATE POLICY "sale_items: tenant via sale"
   );
 
 -- ════════════════════════════════════════════════════════════
--- parts_catalog (peças de OS — diferente de products)
--- ════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS public.parts_catalog (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id   UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  sku         TEXT,
-  name        TEXT NOT NULL,
-  cost_cents  INTEGER NOT NULL DEFAULT 0,
-  is_active   BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_parts_catalog_tenant      ON public.parts_catalog(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_parts_catalog_tenant_name ON public.parts_catalog(tenant_id, name);
-
-ALTER TABLE public.parts_catalog ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "parts_catalog: tenant isolation" ON public.parts_catalog;
-CREATE POLICY "parts_catalog: tenant isolation"
-  ON public.parts_catalog FOR ALL
-  USING (tenant_id = public.tenant_id())
-  WITH CHECK (tenant_id = public.tenant_id());
-
--- ════════════════════════════════════════════════════════════
 -- tenant_settings (configurações chave-valor por tenant)
 -- ════════════════════════════════════════════════════════════
 

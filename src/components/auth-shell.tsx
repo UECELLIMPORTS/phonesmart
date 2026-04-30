@@ -21,11 +21,11 @@ export function AuthShell({ children }: Props) {
         <div className="px-6 sm:px-10 py-6">
           <Link href="/" className="inline-flex items-center gap-2.5 font-bold">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg"
-              style={{ background: 'linear-gradient(135deg, #22C55E, #22D3EE)' }}>
+              style={{ background: 'linear-gradient(135deg, #3B82F6, #06B6D4)' }}>
               <Zap className="h-5 w-5" style={{ color: 'white' }} />
             </div>
             <span style={{ color: '#F8FAFC' }}>
-              Gestão <span style={{ color: '#22C55E' }}>Inteligente</span>
+              Phone <span style={{ color: '#3B82F6' }}>Smart</span>
             </span>
           </Link>
         </div>
@@ -42,15 +42,15 @@ export function AuthShell({ children }: Props) {
           style={{ color: '#64748B' }}>
           <span>© {new Date().getFullYear()} Phone Smart</span>
           <div className="flex gap-4">
-            <a href="https://gestaophonesmart.online/termos" className="hover:opacity-80 transition-opacity">Termos</a>
-            <a href="https://gestaophonesmart.online/privacidade" className="hover:opacity-80 transition-opacity">Privacidade</a>
+            <a href="#" className="hover:opacity-80 transition-opacity">Termos</a>
+            <a href="#" className="hover:opacity-80 transition-opacity">Privacidade</a>
           </div>
         </div>
       </div>
 
       {/* Right: branding side — só em desktop */}
       <div className="hidden lg:flex flex-col flex-1 max-w-xl relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #22C55E 0%, #16A34A 50%, #94A3B8 100%)' }}>
+        style={{ background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #0EA5E9 100%)' }}>
         {/* Pattern decorativo sutil */}
         <div className="pointer-events-none absolute inset-0 opacity-10"
           style={{
@@ -62,21 +62,21 @@ export function AuthShell({ children }: Props) {
           <div className="max-w-md">
             <p className="text-xs font-bold uppercase tracking-widest mb-4"
               style={{ color: 'rgba(255,255,255,.7)' }}>
-              ERP completo · Multi-canal · Pra lojistas reais
+              ERP pra Lojas de Celular · Vendas · OS · Fiscal
             </p>
             <h2 className="text-3xl xl:text-4xl font-bold leading-tight mb-6 tracking-tight"
               style={{ color: 'white' }}>
-              O sistema que cresce<br />junto com a sua loja.
+              O ERP que entende<br />a sua loja de celular.
             </h2>
             <p className="text-base leading-relaxed mb-10"
               style={{ color: 'rgba(255,255,255,.85)' }}>
-              Frente de caixa, estoque, financeiro, CRM e Meta Ads num só painel.
-              Saiba qual canal traz mais lucro e onde sua margem está vazando —
-              com dados reais, não achismo.
+              Controle de IMEI, ordem de serviço com termo de garantia, fiscal completo
+              e CRM pra WhatsApp num só painel. Feito por quem vende celular há mais
+              de 10 anos.
             </p>
 
             <ul className="space-y-3 text-sm" style={{ color: 'rgba(255,255,255,.95)' }}>
-              <FeatureLine icon={Sparkles}>POS, Estoque e Financeiro integrados</FeatureLine>
+              <FeatureLine icon={Sparkles}>Estoque com IMEI · OS · Frente de caixa</FeatureLine>
               <FeatureLine icon={ShieldCheck}>Sem fidelidade · Cancele quando quiser</FeatureLine>
               <FeatureLine icon={Lock}>Seus dados em servidores brasileiros</FeatureLine>
             </ul>
@@ -91,7 +91,7 @@ export function AuthShell({ children }: Props) {
           </p>
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold"
-              style={{ background: 'rgba(255,255,255,.95)', color: '#22C55E' }}>
+              style={{ background: 'rgba(255,255,255,.95)', color: '#3B82F6' }}>
               FF
             </div>
             <div className="text-xs">

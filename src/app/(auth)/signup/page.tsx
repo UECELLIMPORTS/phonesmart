@@ -117,12 +117,12 @@ export default function SignupPage() {
 
       <p className="mt-4 text-center text-[11px]" style={{ color: '#64748B' }}>
         Ao criar a conta você concorda com nossos{' '}
-        <a href="https://gestaophonesmart.online/termos"
+        <a href="https://phonesmart.vercel.app/termos"
           target="_blank" rel="noopener noreferrer"
           className="underline transition-opacity hover:opacity-80"
           style={{ color: '#22C55E' }}>Termos de Uso</a>
         {' '}e{' '}
-        <a href="https://gestaophonesmart.online/privacidade"
+        <a href="https://phonesmart.vercel.app/privacidade"
           target="_blank" rel="noopener noreferrer"
           className="underline transition-opacity hover:opacity-80"
           style={{ color: '#22C55E' }}>Política de Privacidade</a>.

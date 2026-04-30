@@ -55,7 +55,7 @@ function appOrigin(): string {
   // gerando links com host vazio em produção.
   return process.env.NEXT_PUBLIC_APP_URL
       || process.env.APP_URL
-      || 'https://app.gestaophonesmart.online'
+      || 'https://phonesmart.vercel.app'
 }
 
 // ── Listar membros ──────────────────────────────────────────────────────────
