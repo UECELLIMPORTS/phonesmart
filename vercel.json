@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/auto-close-cash",
+      "schedule": "59 2 * * *"
+    },
+    {
+      "path": "/api/cron/emit-batch-nfce",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}
