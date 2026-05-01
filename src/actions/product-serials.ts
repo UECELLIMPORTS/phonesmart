@@ -443,6 +443,195 @@ export async function getDeviceProfit(serialId: string): Promise<DeviceProfit> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// getDeviceHistory — Sprint 6: linha do tempo completa do IMEI
+// ──────────────────────────────────────────────────────────────────────────
+
+export type TimelineEvent =
+  | { type: 'acquired';     at: string; title: string; description: string; amountCents?: number; meta?: Record<string, string | null> }
+  | { type: 'sold';         at: string; title: string; description: string; amountCents?: number; meta?: Record<string, string | null> }
+  | { type: 'returned';     at: string; title: string; description: string }
+  | { type: 'service';      at: string; title: string; description: string; amountCents?: number; meta?: Record<string, string | null> }
+  | { type: 'status_change'; at: string; title: string; description: string }
+
+export type DeviceHistory = {
+  serial:      string
+  productName: string
+  productId:   string
+  status:      'available' | 'sold' | 'returned' | 'defective'
+  costCents:   number | null
+  notes:       string | null
+  // Métricas calculadas
+  acquired:    { at: string | null; costCents: number; from: string | null }
+  sold:        { at: string | null; priceCents: number | null; customerName: string | null; saleId: string | null } | null
+  profitCents: number | null
+  // Linha do tempo
+  events:      TimelineEvent[]
+}
+
+export async function getDeviceHistory(serial: string): Promise<DeviceHistory | null> {
+  const q = serial.trim().toUpperCase()
+  if (q.length < 4) return null
+
+  const { supabase, user } = await requireAuth()
+  const tenantId = getTenantId(user)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  // 1. Acha o serial + produto + cliente da aquisição
+  const { data: serialRow } = await sb
+    .from('product_serials')
+    .select(`
+      id, serial, status, cost_cents, notes, created_at,
+      acquired_at, acquired_from_type, supplier_name, condition, payment_method,
+      sale_item_id,
+      products!inner(id, name),
+      customers:acquired_customer_id (full_name)
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('serial', q)
+    .maybeSingle()
+
+  if (!serialRow) return null
+
+  type SerialFull = {
+    id: string; serial: string; status: 'available' | 'sold' | 'returned' | 'defective'
+    cost_cents: number | null; notes: string | null; created_at: string
+    acquired_at: string | null; acquired_from_type: string | null
+    supplier_name: string | null; condition: string | null; payment_method: string | null
+    sale_item_id: string | null
+    products: { id: string; name: string } | null
+    customers: { full_name: string } | null
+  }
+  const s = serialRow as SerialFull
+  if (!s.products) return null
+
+  const events: TimelineEvent[] = []
+
+  // 2. Aquisição
+  const fromLabel =
+    s.acquired_from_type === 'customer' ? (s.customers?.full_name ? `Cliente: ${s.customers.full_name}` : 'Cliente')
+    : s.acquired_from_type === 'supplier' ? (s.supplier_name ? `Fornecedor: ${s.supplier_name}` : 'Fornecedor')
+    : s.acquired_from_type === 'trade_in' ? 'Troca'
+    : s.acquired_from_type === 'other' ? 'Outro' : null
+
+  events.push({
+    type:        'acquired',
+    at:          s.acquired_at ?? s.created_at,
+    title:       'Cadastrado no estoque',
+    description: fromLabel ?? 'Origem não informada',
+    amountCents: s.cost_cents ?? undefined,
+    meta:        {
+      'Condição':    s.condition,
+      'Pagamento':   s.payment_method,
+    },
+  })
+
+  // 3. Venda (se sale_item_id)
+  let soldAt: string | null = null
+  let soldPrice: number | null = null
+  let soldCustomerName: string | null = null
+  let saleId: string | null = null
+
+  if (s.sale_item_id) {
+    const { data: item } = await sb
+      .from('sale_items')
+      .select('sale_id, unit_price_cents, sales(id, created_at, customer_id, customers(full_name, whatsapp))')
+      .eq('id', s.sale_item_id)
+      .maybeSingle()
+    type ItemRow = {
+      sale_id: string; unit_price_cents: number
+      sales: {
+        id: string; created_at: string; customer_id: string | null
+        customers: { full_name: string; whatsapp: string | null } | null
+      } | null
+    }
+    const it = item as ItemRow | null
+    if (it?.sales) {
+      soldAt = it.sales.created_at
+      soldPrice = it.unit_price_cents
+      soldCustomerName = it.sales.customers?.full_name ?? null
+      saleId = it.sales.id
+      events.push({
+        type:        'sold',
+        at:          it.sales.created_at,
+        title:       'Vendido',
+        description: soldCustomerName ? `Cliente: ${soldCustomerName}` : 'Cliente não identificado',
+        amountCents: it.unit_price_cents,
+        meta:        {
+          'WhatsApp': it.sales.customers?.whatsapp ?? null,
+        },
+      })
+    }
+  }
+
+  // 4. Mudança de status (devolvido/defeito) — usa updated_at se status diferente de sold/available
+  if (s.status === 'returned') {
+    events.push({
+      type:        'returned',
+      at:          s.created_at,  // best effort; não temos histórico de mudança
+      title:       'Devolvido',
+      description: 'Aparelho devolvido pelo cliente.',
+    })
+  } else if (s.status === 'defective') {
+    events.push({
+      type:        'status_change',
+      at:          s.created_at,
+      title:       'Marcado como defeito',
+      description: 'Aparelho não pode ser vendido.',
+    })
+  }
+
+  // 5. Ordens de serviço vinculadas
+  const { data: osRows } = await sb
+    .from('service_orders')
+    .select('id, os_number, opened_at, closed_at, status, defect_description, diagnosis, cost_cents, warranty_used, technician_name')
+    .eq('tenant_id', tenantId)
+    .eq('product_serial_id', s.id)
+    .order('opened_at', { ascending: true })
+
+  type OsRow = {
+    id: string; os_number: string; opened_at: string; closed_at: string | null
+    status: string; defect_description: string; diagnosis: string | null
+    cost_cents: number; warranty_used: boolean; technician_name: string | null
+  }
+  for (const os of (osRows ?? []) as OsRow[]) {
+    events.push({
+      type:        'service',
+      at:          os.opened_at,
+      title:       `OS ${os.os_number} — ${os.status}`,
+      description: os.defect_description,
+      amountCents: os.cost_cents > 0 ? os.cost_cents : undefined,
+      meta:        {
+        'Técnico':      os.technician_name,
+        'Garantia':     os.warranty_used ? 'Sim' : 'Não',
+        'Diagnóstico':  os.diagnosis,
+        'Encerrada em': os.closed_at,
+      },
+    })
+  }
+
+  // Ordena cronológico
+  events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+
+  const acquiredCost = s.cost_cents ?? 0
+  const profitCents = soldPrice != null ? soldPrice - acquiredCost : null
+
+  return {
+    serial:      s.serial,
+    productName: s.products.name,
+    productId:   s.products.id,
+    status:      s.status,
+    costCents:   s.cost_cents,
+    notes:       s.notes,
+    acquired:    { at: s.acquired_at ?? s.created_at, costCents: acquiredCost, from: fromLabel },
+    sold:        soldAt ? { at: soldAt, priceCents: soldPrice, customerName: soldCustomerName, saleId } : null,
+    profitCents,
+    events,
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // findBySerial — busca rápida no PDV (escanear código de barras)
 // ──────────────────────────────────────────────────────────────────────────
 

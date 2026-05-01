@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import {
   Plus, Pencil, Trash2, Loader2, X, Smartphone, Search,
-  CheckCircle2, ShoppingCart, RotateCcw, AlertTriangle, Printer,
+  CheckCircle2, ShoppingCart, RotateCcw, AlertTriangle, Printer, History,
 } from 'lucide-react'
 import {
   addSerials, updateSerial, deleteSerial,
@@ -334,6 +334,13 @@ export function SerialsPanel({
                     {s.notes && <span className="truncate max-w-[20rem]">📝 {s.notes}</span>}
                   </div>
                 </div>
+                <a
+                  href={`/imei/${encodeURIComponent(s.serial)}`}
+                  className="rounded-lg p-2 text-zinc-500 hover:bg-blue-50 hover:text-blue-600"
+                  title="Histórico do IMEI"
+                >
+                  <History className="h-4 w-4" />
+                </a>
                 <a
                   href={`/etiquetas/${s.id}`}
                   target="_blank"
