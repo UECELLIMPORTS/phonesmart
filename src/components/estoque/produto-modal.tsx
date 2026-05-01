@@ -25,7 +25,7 @@ const CONDITIONS: { value: ProductCondition; label: string }[] = [
   { value: 'recondicionado',  label: 'Recondicionado' },
 ]
 
-const TABS = ['Dados Básicos', 'Características', 'Imagens', 'Estoque', 'Fiscal'] as const
+const TABS = ['Dados Básicos', 'Características', 'Imagens', 'Estoque', 'IMEI/Serial', 'Fiscal'] as const
 type Tab = typeof TABS[number]
 
 const EMPTY_FORM: ProductInput = {
@@ -37,6 +37,7 @@ const EMPTY_FORM: ProductInput = {
   location: '', supplier: '', imageUrls: [], description: '', active: true,
   ncm: '', cfop: '5102', cstCsosn: '102', origem: '0',
   warrantyDays: null,
+  trackSerials: false,
 }
 
 const INP   = 'w-full rounded-lg border bg-transparent px-3 py-2 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent'
@@ -182,6 +183,7 @@ export function ProdutoModal({
       origem:             source.origem   ?? '0',
       // Garantia (Fase 3 — comprovante)
       warrantyDays:       source.warranty_days ?? null,
+      trackSerials:       source.track_serials ?? false,
     }
   }
 
@@ -562,6 +564,61 @@ export function ProdutoModal({
                   style={{ background: '#94A3B818', color: '#60A5FA', border: '1px solid #94A3B840' }}>
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   Estoque acima do máximo configurado ({form.stockMax} unidades).
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── IMEI/Serial Tracking (lojas de celular) ─────────────────── */}
+          {tab === 'IMEI/Serial' && (
+            <>
+              <div className="rounded-lg p-3 mb-4 text-xs flex items-start gap-2"
+                style={{ background: 'rgba(59,130,246,.08)', border: '1px solid rgba(59,130,246,.3)', color: '#CBD5E1' }}>
+                <span className="font-bold" style={{ color: '#3B82F6' }}>📱</span>
+                <div className="flex-1">
+                  <p className="font-semibold mb-1" style={{ color: '#3B82F6' }}>Rastreio individual por IMEI/Serial</p>
+                  <p style={{ color: '#94A3B8' }}>
+                    Marque essa opção pra <strong>celulares</strong> e produtos que precisam ser rastreados unidade por unidade.
+                    Quando ativo: cada aparelho cadastrado tem seu IMEI único, o PDV exige selecionar qual unidade está sendo vendida,
+                    e o estoque é calculado automaticamente pelo número de IMEIs disponíveis.
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer rounded-lg border p-4 mb-3 hover:bg-white/5 transition-colors"
+                style={{ borderColor: form.trackSerials ? '#3B82F6' : '#2A3650', background: form.trackSerials ? 'rgba(59,130,246,.05)' : 'transparent' }}>
+                <input
+                  type="checkbox"
+                  checked={form.trackSerials ?? false}
+                  onChange={e => set('trackSerials', e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded accent-accent cursor-pointer"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-text">
+                    Rastrear IMEIs/Seriais individualmente
+                  </p>
+                  <p className="text-xs text-muted mt-0.5">
+                    Recomendado pra celulares novos, semi-novos e qualquer produto com número de série único.
+                  </p>
+                </div>
+              </label>
+
+              {form.trackSerials && editing && (
+                <div className="rounded-lg border p-3" style={{ borderColor: '#2A3650', background: 'rgba(59,130,246,.03)' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#3B82F6' }}>Próximo passo</p>
+                  <p className="text-xs text-muted">
+                    Salve o produto, depois acesse <strong>Estoque → este produto → IMEIs</strong> pra cadastrar a lista
+                    de aparelhos físicos com seus respectivos IMEIs.
+                  </p>
+                </div>
+              )}
+
+              {form.trackSerials && !editing && (
+                <div className="rounded-lg border p-3" style={{ borderColor: '#2A3650', background: 'rgba(59,130,246,.03)' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#3B82F6' }}>Próximo passo</p>
+                  <p className="text-xs text-muted">
+                    Após cadastrar o produto, abra-o novamente pra adicionar os IMEIs específicos.
+                  </p>
                 </div>
               )}
             </>

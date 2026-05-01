@@ -43,6 +43,8 @@ export type ProductRow = {
   unidade?: string | null
   // Garantia (override do tenants.warranty_days)
   warranty_days: number | null
+  // IMEI/Serial tracking — quando true, exige selecionar IMEI específico no PDV
+  track_serials: boolean
   created_at: string
   updated_at: string
 }
@@ -79,6 +81,8 @@ export type ProductInput = {
   origem?: string      // 0=nacional, 1=importação direta, etc
   // Garantia em dias (sobrepõe o padrão do tenant). NULL = usa padrão.
   warrantyDays?: number | null
+  // IMEI/Serial tracking — celulares devem marcar true
+  trackSerials?: boolean
 }
 
 // Colunas para a listagem (tabela) — sem campos pesados que só o modal usa
@@ -93,7 +97,7 @@ const SELECT_COLS = `id, code, name, brand, category, format, condition, gtin,
   purchase_price_cents, cost_cents, price_cents, unit,
   stock_qty, stock_min, stock_max, location,
   supplier, image_urls, description, active,
-  ncm, cfop, cst_csosn, origem, warranty_days,
+  ncm, cfop, cst_csosn, origem, warranty_days, track_serials,
   created_at, updated_at`
 
 // ── Params for paginated list ─────────────────────────────────────────────────
@@ -270,6 +274,8 @@ function toPayload(input: ProductInput, tenantId?: string) {
     warranty_days:        (input.warrantyDays != null && Number.isFinite(input.warrantyDays))
                             ? Math.max(0, Math.min(3650, Math.round(input.warrantyDays)))
                             : null,
+    // IMEI/Serial tracking
+    track_serials:        input.trackSerials === true,
     updated_at:           new Date().toISOString(),
   }
   if (tenantId) return { ...base, tenant_id: tenantId }
