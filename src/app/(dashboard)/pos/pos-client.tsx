@@ -10,6 +10,7 @@ import {
   searchProducts, searchCustomers, createCustomer, createSale, updateCustomerOrigin,
   type Product, type Customer,
 } from '@/actions/pos'
+import { listSerials, type ProductSerial } from '@/actions/product-serials'
 import type { StockControlMode } from '@/actions/settings'
 import { AddressCityState } from '@/components/ui/address-fields'
 import { CUSTOMER_ORIGIN_OPTIONS, originLabel } from '@/lib/customer-origin'
@@ -26,6 +27,11 @@ type CartItem = {
   name: string
   quantity: number
   unitPriceCents: number
+  // IMEI tracking: quando produto tem track_serials, esse item carrega o IMEI
+  // específico vendido. Quantidade fica travada em 1 nesse caso.
+  productSerialId?:     string
+  productSerialNumber?: string
+  costSnapshotCents?:   number   // override: custo do serial (cada IMEI tem custo próprio)
 }
 
 type PaymentMethod = 'cash' | 'pix' | 'card' | 'mixed'
@@ -89,6 +95,13 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
   const [mName, setMName]           = useState('')
   const [mPrice, setMPrice]         = useState('')
   const [mQty, setMQty]             = useState('1')
+
+  // ── IMEI selection modal (quando produto tem track_serials e user buscou por nome) ──
+  const [serialPicker, setSerialPicker] = useState<{
+    product: Product
+    serials: ProductSerial[]
+    loading: boolean
+  } | null>(null)
 
   // ── Adjustments ──
   const [shipping, setShipping] = useState('')
@@ -168,6 +181,23 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
 
   // ── Cart helpers ──
   function addProduct(p: Product) {
+    // Caso 1: resultado direto de busca por IMEI (source='serial') → adiciona com serial vinculado
+    if (p.source === 'serial' && p.serial_id && p.serial_number) {
+      addSerialToCart(p, p.serial_id, p.serial_number)
+      setQuery('')
+      setShowDrop(false)
+      return
+    }
+
+    // Caso 2: produto com IMEI tracking buscado por nome → abre modal pra escolher IMEI
+    if (p.source === 'products' && p.track_serials) {
+      openSerialPicker(p)
+      setQuery('')
+      setShowDrop(false)
+      return
+    }
+
+    // Caso 3: produto normal (sem IMEI tracking) ou peça
     // Verifica estoque apenas para produtos (não peças do CheckSmart)
     if (p.source === 'products' && p.stock_qty !== null && p.stock_qty <= 0) {
       if (stockControlMode === 'block') {
@@ -184,16 +214,60 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
     }
 
     setCart(prev => {
-      const idx = prev.findIndex(i => i.productId === p.id)
+      // Não agrupa itens com serial — cada IMEI é único
+      const idx = prev.findIndex(i => i.productId === p.id && !i.productSerialId)
       if (idx >= 0) {
         const next = [...prev]
         next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 }
         return next
       }
-      return [...prev, { key: randKey(), productId: p.id, source: p.source, name: p.name, quantity: 1, unitPriceCents: p.price_cents }]
+      return [...prev, { key: randKey(), productId: p.id, source: p.source as 'products' | 'parts_catalog', name: p.name, quantity: 1, unitPriceCents: p.price_cents }]
     })
     setQuery('')
     setShowDrop(false)
+  }
+
+  function addSerialToCart(p: Product, serialId: string, serialNumber: string, costCents?: number | null) {
+    // Bloqueia adicionar o mesmo IMEI 2x (só existe uma unidade física)
+    if (cart.some(i => i.productSerialId === serialId)) {
+      toast.error(`IMEI ${serialNumber} já está no carrinho.`)
+      return
+    }
+    setCart(prev => [...prev, {
+      key: randKey(),
+      productId: p.id,
+      source: 'products' as const,
+      name: `${p.source === 'serial' ? p.name.split(' • IMEI ')[0] : p.name} • IMEI ${serialNumber}`,
+      quantity: 1,
+      unitPriceCents: p.price_cents,
+      productSerialId: serialId,
+      productSerialNumber: serialNumber,
+      ...(costCents != null ? { costSnapshotCents: costCents } : {}),
+    }])
+  }
+
+  async function openSerialPicker(p: Product) {
+    setSerialPicker({ product: p, serials: [], loading: true })
+    try {
+      const list = await listSerials(p.id, 'available')
+      // Remove os IMEIs já no carrinho (não pode vender 2x)
+      const inCart = new Set(cart.map(i => i.productSerialId).filter(Boolean) as string[])
+      const filtered = list.filter(s => !inCart.has(s.id))
+      setSerialPicker({ product: p, serials: filtered, loading: false })
+      if (filtered.length === 0) {
+        toast.error(`Nenhum IMEI disponível pra "${p.name}". Cadastre IMEIs no estoque antes de vender.`)
+        setSerialPicker(null)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao carregar IMEIs')
+      setSerialPicker(null)
+    }
+  }
+
+  function pickSerial(s: ProductSerial) {
+    if (!serialPicker) return
+    addSerialToCart(serialPicker.product, s.id, s.serial, s.costCents)
+    setSerialPicker(null)
   }
 
   function addManual() {
@@ -209,7 +283,12 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
 
   function setQty(key: string, q: number) {
     if (q <= 0) { setCart(prev => prev.filter(i => i.key !== key)); return }
-    setCart(prev => prev.map(i => i.key === key ? { ...i, quantity: q } : i))
+    setCart(prev => prev.map(i => {
+      if (i.key !== key) return i
+      // IMEI tracking: cada item é uma unidade física única, qty trava em 1
+      if (i.productSerialId) return i
+      return { ...i, quantity: q }
+    }))
   }
 
   function setPrice(key: string, val: string) {
@@ -364,12 +443,14 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
         deliveryType:   deliveryType || null,
         customerOrigin: isDefault ? (consumerOrigin || null) : null,
         items: cart.map(i => ({
-          productId:      i.productId,
-          source:         i.source,
-          name:           i.name,
-          quantity:       i.quantity,
-          unitPriceCents: i.unitPriceCents,
-          subtotalCents:  i.unitPriceCents * i.quantity,
+          productId:        i.productId,
+          source:           i.source,
+          name:             i.name,
+          quantity:         i.quantity,
+          unitPriceCents:   i.unitPriceCents,
+          subtotalCents:    i.unitPriceCents * i.quantity,
+          productSerialId:  i.productSerialId ?? null,
+          costSnapshotCents: i.costSnapshotCents ?? null,
         })),
       })
       // Marca cupom de aniversário como usado (se aplicado nessa venda)
@@ -439,34 +520,42 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
                 className="absolute z-50 mt-1 w-full rounded-xl border shadow-xl overflow-hidden"
                 style={{ background: '#1B2638', borderColor: '#2A3650' }}
               >
-                {results.map(p => (
-                  <button
-                    key={`${p.source}-${p.id}`}
-                    onMouseDown={() => addProduct(p)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-sm hover:bg-card transition-colors"
-                  >
-                    <div className="text-left">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-text">{p.name}</p>
-                        <span
-                          className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                          style={p.source === 'parts_catalog'
-                            ? { background: '#F59E0B18', color: '#F59E0B' }
-                            : { background: '#22C55E18', color: '#22C55E' }}
-                        >
-                          {p.source === 'parts_catalog' ? 'Peça' : 'Produto'}
-                        </span>
+                {results.map(p => {
+                  const badge =
+                    p.source === 'serial'        ? { label: 'IMEI',    bg: '#3B82F618', fg: '#3B82F6' }
+                  : p.source === 'parts_catalog' ? { label: 'Peça',    bg: '#F59E0B18', fg: '#F59E0B' }
+                  : p.track_serials              ? { label: 'Celular', bg: '#3B82F618', fg: '#3B82F6' }
+                  :                                { label: 'Produto', bg: '#22C55E18', fg: '#22C55E' }
+                  return (
+                    <button
+                      key={p.source === 'serial' ? `serial-${p.serial_id}` : `${p.source}-${p.id}`}
+                      onMouseDown={() => addProduct(p)}
+                      className="flex w-full items-center justify-between px-4 py-3 text-sm hover:bg-card transition-colors"
+                    >
+                      <div className="text-left">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-text">{p.name}</p>
+                          <span
+                            className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                            style={{ background: badge.bg, color: badge.fg }}
+                          >
+                            {badge.label}
+                          </span>
+                        </div>
+                        {p.code && p.source !== 'serial' && <p className="text-xs text-muted">Cód: {p.code}</p>}
+                        {p.source === 'products' && p.track_serials && (
+                          <p className="text-xs text-muted">Clique pra escolher um IMEI disponível</p>
+                        )}
                       </div>
-                      {p.code && <p className="text-xs text-muted">Cód: {p.code}</p>}
-                    </div>
-                    <div className="text-right ml-4 shrink-0">
-                      <p className="font-semibold text-accent">{BRL(p.price_cents)}</p>
-                      {p.stock_qty != null && (
-                        <p className="text-xs text-muted">Estoque: {p.stock_qty}</p>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                      <div className="text-right ml-4 shrink-0">
+                        <p className="font-semibold text-accent">{BRL(p.price_cents)}</p>
+                        {p.stock_qty != null && (
+                          <p className="text-xs text-muted">Estoque: {p.stock_qty}</p>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1184,6 +1273,55 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
                 Adicionar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── IMEI picker modal ── */}
+      {serialPicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSerialPicker(null) }}
+        >
+          <div className="w-full max-w-md rounded-2xl border p-6 space-y-4" style={{ background: '#1B2638', borderColor: '#2A3650' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-text">Selecionar IMEI</h3>
+                <p className="mt-0.5 text-xs text-muted">{serialPicker.product.name}</p>
+              </div>
+              <button onClick={() => setSerialPicker(null)} className="text-muted hover:text-coral transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {serialPicker.loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted" />
+              </div>
+            ) : (
+              <div className="max-h-80 overflow-y-auto space-y-2">
+                {serialPicker.serials.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => pickSerial(s)}
+                    className="w-full rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-card"
+                    style={{ borderColor: '#2A3650' }}
+                  >
+                    <p className="font-mono text-sm font-semibold text-text">{s.serial}</p>
+                    <div className="mt-0.5 flex items-center gap-3 text-xs text-muted">
+                      {s.serial2 && <span>2º: {s.serial2}</span>}
+                      {s.costCents != null && <span>Custo: {BRL(s.costCents)}</span>}
+                      {s.notes && <span className="truncate">📝 {s.notes}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-muted">
+              {serialPicker.serials.length} IMEI(s) disponível(is). Clique pra selecionar.
+            </p>
           </div>
         </div>
       )}

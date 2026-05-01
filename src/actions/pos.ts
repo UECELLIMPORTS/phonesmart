@@ -4,6 +4,7 @@ import { after } from 'next/server'
 import { requireAuth } from '@/lib/supabase/server'
 import { getTenantId } from '@/lib/tenant'
 import { tryAutoEmitNfceForSale } from '@/lib/fiscal-emit-core'
+import { markSerialSold } from '@/actions/product-serials'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -13,7 +14,12 @@ export type Product = {
   name: string
   price_cents: number
   stock_qty: number | null
-  source: 'products' | 'parts_catalog'
+  source: 'products' | 'parts_catalog' | 'serial'
+  track_serials?: boolean
+  // Quando source='serial': IMEI selecionado e quantos sobram do mesmo modelo
+  serial_id?:        string
+  serial_number?:    string
+  serial_available?: number
 }
 
 export type Customer = {
@@ -50,6 +56,9 @@ export type SaleItem = {
   quantity: number
   unitPriceCents: number
   subtotalCents: number
+  // Quando produto tem track_serials=true, qual IMEI específico foi vendido
+  productSerialId?: string | null
+  costSnapshotCents?: number | null  // override do custo (vem do serial.cost_cents)
 }
 
 export type CreateSaleInput = {
@@ -74,11 +83,19 @@ export async function searchProducts(query: string): Promise<Product[]> {
   const { supabase, user } = await requireAuth()
   const tenantId = getTenantId(user)
   const q = query.trim()
+  const qUpper = q.toUpperCase()
 
-  const [productsRes, partsRes] = await Promise.all([
+  // Busca por IMEI roda em paralelo quando o query parece IMEI/serial (>=4 chars,
+  // sem espaços). Retorna unidades específicas com IMEI vinculado.
+  const looksLikeSerial = q.length >= 4 && !/\s/.test(q)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const [productsRes, partsRes, serialsRes] = await Promise.all([
     supabase
       .from('products')
-      .select('id, code, name, price_cents, stock_qty')
+      .select('id, code, name, price_cents, stock_qty, track_serials')
       .eq('tenant_id', tenantId)
       .eq('active', true)
       .or(`name.ilike.%${q}%,code.ilike.%${q}%`)
@@ -92,15 +109,26 @@ export async function searchProducts(query: string): Promise<Product[]> {
       .ilike('name', `%${q}%`)
       .order('name')
       .limit(8),
+    looksLikeSerial
+      ? sb
+          .from('product_serials')
+          .select('id, serial, status, products!inner(id, name, code, price_cents, track_serials)')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'available')
+          .or(`serial.ilike.%${qUpper}%,serial_2.ilike.%${qUpper}%`)
+          .limit(6)
+      : Promise.resolve({ data: [] }),
   ])
 
-  const products: Product[] = (productsRes.data ?? []).map(p => ({
-    id:          p.id,
-    code:        p.code ?? null,
-    name:        p.name,
-    price_cents: p.price_cents,
-    stock_qty:   p.stock_qty,
-    source:      'products' as const,
+  type ProductRow = { id: string; code: string | null; name: string; price_cents: number; stock_qty: number | null; track_serials: boolean }
+  const products: Product[] = ((productsRes.data ?? []) as ProductRow[]).map(p => ({
+    id:             p.id,
+    code:           p.code ?? null,
+    name:           p.name,
+    price_cents:    p.price_cents,
+    stock_qty:      p.stock_qty,
+    source:         'products' as const,
+    track_serials:  p.track_serials,
   }))
 
   const parts: Product[] = (partsRes.data ?? []).map(p => ({
@@ -112,7 +140,26 @@ export async function searchProducts(query: string): Promise<Product[]> {
     source:      'parts_catalog' as const,
   }))
 
-  return [...products, ...parts].slice(0, 12)
+  type SerialRow = {
+    id: string; serial: string; status: string
+    products: { id: string; name: string; code: string | null; price_cents: number; track_serials: boolean } | null
+  }
+  const serials: Product[] = ((serialsRes.data ?? []) as SerialRow[])
+    .filter(r => r.products)
+    .map(r => ({
+      id:             r.products!.id,
+      code:           r.products!.code,
+      name:           `${r.products!.name} • IMEI ${r.serial}`,
+      price_cents:    r.products!.price_cents,
+      stock_qty:      null,
+      source:         'serial' as const,
+      track_serials:  true,
+      serial_id:      r.id,
+      serial_number:  r.serial,
+    }))
+
+  // Resultado: serials primeiro (busca por IMEI tem prioridade), depois produtos, depois peças
+  return [...serials, ...products, ...parts].slice(0, 14)
 }
 
 export async function searchCustomers(query: string): Promise<Customer[]> {
@@ -425,27 +472,46 @@ export async function createSale(input: CreateSaleInput): Promise<{ id: string }
     for (const p of (partRes.data ?? []) as { id: string; cost_cents: number }[]) costMap.set(p.id, p.cost_cents ?? 0)
   }
 
-  const { error: itemsError } = await supabase
+  // Insert com .select() pra recuperar os ids (precisamos pra linkar IMEI vendido).
+  // Mantém ordem de input.items pra associar serial_id corretamente.
+  const itemsPayload = input.items.map(item => ({
+    sale_id:             sale.id,
+    product_id:          item.productId,
+    name:                item.name,
+    quantity:            item.quantity,
+    unit_price_cents:    item.unitPriceCents,
+    subtotal_cents:      item.subtotalCents,
+    cost_snapshot_cents: item.costSnapshotCents != null
+      ? item.costSnapshotCents
+      : (item.productId ? (costMap.get(item.productId) ?? null) : null),
+    product_serial_id:   item.productSerialId ?? null,
+  }))
+
+  const { data: insertedItems, error: itemsError } = await supabase
     .from('sale_items')
-    .insert(
-      input.items.map(item => ({
-        sale_id:             sale.id,
-        product_id:          item.productId,
-        name:                item.name,
-        quantity:            item.quantity,
-        unit_price_cents:    item.unitPriceCents,
-        subtotal_cents:      item.subtotalCents,
-        cost_snapshot_cents: item.productId ? (costMap.get(item.productId) ?? null) : null,
-      })),
-    )
+    .insert(itemsPayload)
+    .select('id')
 
   if (itemsError) throw new Error(itemsError.message)
 
-  // Registrar saída de estoque como stock_movement (a trigger
-  // trg_sync_product_after_movement decrementa products.stock_qty
-  // automaticamente). Isso mantém o histórico de movimentações
-  // coerente com o saldo do produto.
-  const stockItems = input.items.filter(i => i.productId && i.source === 'products')
+  // Marca cada IMEI vendido (status='sold' + sale_item_id). markSerialSold já
+  // sincroniza products.stock_qty pelo count de serials available.
+  const insertedIds = (insertedItems ?? []) as { id: string }[]
+  for (let i = 0; i < input.items.length; i++) {
+    const it = input.items[i]
+    const saleItemId = insertedIds[i]?.id
+    if (it.productSerialId && saleItemId) {
+      const res = await markSerialSold(it.productSerialId, saleItemId, sb)
+      if (!res.ok) throw new Error(`Erro ao vincular IMEI: ${res.error}`)
+    }
+  }
+
+  // Registrar saída de estoque como stock_movement (trigger sync ajusta stock_qty).
+  // Itens com IMEI tracking são pulados — markSerialSold já mantém stock_qty coerente
+  // (count de serials available) e gerar movimento duplicaria o decremento.
+  const stockItems = input.items.filter(
+    i => i.productId && i.source === 'products' && !i.productSerialId,
+  )
   if (stockItems.length > 0) {
     const { error: movError } = await supabase.from('stock_movements').insert(
       stockItems.map(item => ({

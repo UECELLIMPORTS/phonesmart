@@ -887,10 +887,15 @@ export function FinanceiroClient({ initialRows }: { initialRows: FinanceiroRow[]
   }
 
   function addEsProduct(p: Product) {
+    if (p.source === 'serial') {
+      toast.info('Pra editar vendas com IMEI específico, use o PDV. Aqui só rolam itens normais.')
+      return
+    }
+    const src: 'products' | 'parts_catalog' = p.source
     setEsCart(prev => {
       const idx = prev.findIndex(i => i.productId === p.id)
       if (idx >= 0) { const n = [...prev]; n[idx] = { ...n[idx], quantity: n[idx].quantity + 1 }; return n }
-      return [...prev, { key: randKey(), productId: p.id, source: p.source, name: p.name, quantity: 1, unitPriceCents: p.price_cents }]
+      return [...prev, { key: randKey(), productId: p.id, source: src, name: p.name, quantity: 1, unitPriceCents: p.price_cents }]
     })
     setEsPQuery(''); setEsPDrop(false)
   }
@@ -952,6 +957,11 @@ export function FinanceiroClient({ initialRows }: { initialRows: FinanceiroRow[]
 
   // ── Cart helpers ──────────────────────────────────────────────────────────
   function addProduct(p: Product) {
+    if (p.source === 'serial') {
+      toast.info('Pra vender por IMEI, use o PDV.')
+      return
+    }
+    const src: 'products' | 'parts_catalog' = p.source
     setCart(prev => {
       const idx = prev.findIndex(i => i.productId === p.id)
       if (idx >= 0) {
@@ -959,7 +969,7 @@ export function FinanceiroClient({ initialRows }: { initialRows: FinanceiroRow[]
         next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 }
         return next
       }
-      return [...prev, { key: randKey(), productId: p.id, source: p.source, name: p.name, quantity: 1, unitPriceCents: p.price_cents }]
+      return [...prev, { key: randKey(), productId: p.id, source: src, name: p.name, quantity: 1, unitPriceCents: p.price_cents }]
     })
     setPQuery(''); setPResults([]); setPDrop(false)
     // Re-foca o campo pra facilitar buscar o próximo produto
