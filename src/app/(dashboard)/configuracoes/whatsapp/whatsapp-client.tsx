@@ -342,15 +342,31 @@ function TemplateCard({
 
   useEffect(() => { setDraft(template) }, [template])
 
-  const dirty = draft.body !== template.body || draft.delayHours !== template.delayHours || draft.enabled !== template.enabled
+  const dirty =
+       draft.body         !== template.body
+    || draft.delayMinutes !== template.delayMinutes
+    || draft.enabled      !== template.enabled
+    || draft.sendEmail    !== template.sendEmail
+    || draft.emailSubject !== template.emailSubject
+
+  // Split delayMinutes em horas + minutos pra UI
+  const delayH = Math.floor(draft.delayMinutes / 60)
+  const delayM = draft.delayMinutes % 60
+
+  function setDelay(h: number, m: number) {
+    const total = Math.max(0, h * 60 + m)
+    setDraft(d => ({ ...d, delayMinutes: total }))
+  }
 
   async function save() {
     setSaving(true)
     const res = await updateTemplate({
-      id:         draft.id,
-      enabled:    draft.enabled,
-      delayHours: draft.delayHours,
-      body:       draft.body,
+      id:           draft.id,
+      enabled:      draft.enabled,
+      delayMinutes: draft.delayMinutes,
+      body:         draft.body,
+      sendEmail:    draft.sendEmail,
+      emailSubject: draft.emailSubject,
     })
     setSaving(false)
     if (!res.ok) {
@@ -396,21 +412,66 @@ function TemplateCard({
           {(template.type === 'post_sale' || template.type === 'post_service') && (
             <div>
               <label className="mb-1 block text-xs font-medium text-muted">
-                Enviar quantas horas após o gatilho?
+                Enviar quanto tempo após o gatilho?
               </label>
-              <input
-                type="number"
-                min="0"
-                max="720"
-                value={draft.delayHours}
-                onChange={e => setDraft(d => ({ ...d, delayHours: parseInt(e.target.value) || 0 }))}
-                className="w-32 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="720"
+                  value={delayH}
+                  onChange={e => setDelay(parseInt(e.target.value) || 0, delayM)}
+                  className="w-20 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text text-right"
+                />
+                <span className="text-xs text-muted">h</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={delayM}
+                  onChange={e => setDelay(delayH, parseInt(e.target.value) || 0)}
+                  className="w-20 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text text-right"
+                />
+                <span className="text-xs text-muted">min</span>
+                <span className="text-[11px] text-muted ml-2">
+                  Total: {draft.delayMinutes} minuto{draft.delayMinutes !== 1 ? 's' : ''}
+                </span>
+              </div>
               <p className="mt-1 text-[11px] text-muted">
-                Ex: 24h = 1 dia depois. 168h = 7 dias.
+                Ex: 24h 0min = 1 dia. 0h 5min = 5 minutos (útil pra teste).
               </p>
             </div>
           )}
+
+          {/* Toggle email + assunto */}
+          <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={draft.sendEmail}
+                onChange={e => setDraft(d => ({ ...d, sendEmail: e.target.checked }))}
+                className="h-4 w-4 rounded border-zinc-600 text-emerald-500 focus:ring-emerald-500 bg-zinc-900"
+              />
+              <span className="text-xs font-medium text-text">
+                Enviar também por email
+                <span className="ml-1 text-muted font-normal">(se cliente tiver email cadastrado)</span>
+              </span>
+            </label>
+            {draft.sendEmail && (
+              <div>
+                <label className="mb-1 block text-[11px] text-muted">Assunto do email</label>
+                <input
+                  value={draft.emailSubject ?? ''}
+                  onChange={e => setDraft(d => ({ ...d, emailSubject: e.target.value }))}
+                  placeholder="Ex: 🎂 Parabéns pelo seu aniversário!"
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text"
+                />
+                <p className="mt-1 text-[11px] text-muted">
+                  Body do email = mesmo do WhatsApp (com formatação HTML simples)
+                </p>
+              </div>
+            )}
+          </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between">

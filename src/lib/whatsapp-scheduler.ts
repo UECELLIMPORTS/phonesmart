@@ -56,7 +56,7 @@ export async function scheduleWhatsAppMessage(params: ScheduleParams): Promise<{
   // 2. Pega template
   const { data: template } = await sb
     .from('whatsapp_templates')
-    .select('enabled, delay_hours, body')
+    .select('enabled, delay_minutes, body, send_email, email_subject')
     .eq('tenant_id', params.tenantId)
     .eq('type', params.type)
     .maybeSingle()
@@ -102,7 +102,7 @@ export async function scheduleWhatsAppMessage(params: ScheduleParams): Promise<{
   }
 
   // 5. Calcula scheduled_for
-  const delayMs = (template.delay_hours as number) * 3600 * 1000
+  const delayMs = (template.delay_minutes as number) * 60 * 1000
   const scheduledFor = params.scheduledFor ?? new Date(Date.now() + delayMs).toISOString()
 
   // 6. Anti-duplicate: não cria msg igual (mesmo type + reference_id) já pendente/enviada nas últimas 12h
