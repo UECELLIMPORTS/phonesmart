@@ -19,7 +19,7 @@ type SaleRow = {
   delivery_type: string | null
   created_at: string
   customers: { full_name: string; cpf_cnpj: string | null; whatsapp: string | null; email: string | null } | null
-  sale_items: { name: string; product_id: string | null; quantity: number; unit_price_cents: number; subtotal_cents: number }[]
+  sale_items: { name: string; product_id: string | null; quantity: number; unit_price_cents: number; subtotal_cents: number; product_serial_id: string | null }[]
 }
 
 type TenantRow = {
@@ -59,7 +59,7 @@ export async function getComprovanteData(
         id, user_id, total_cents, subtotal_cents, discount_cents, shipping_cents,
         payment_method, sale_channel, delivery_type, created_at,
         customers ( full_name, cpf_cnpj, whatsapp, email ),
-        sale_items ( name, product_id, quantity, unit_price_cents, subtotal_cents )
+        sale_items ( name, product_id, quantity, unit_price_cents, subtotal_cents, product_serial_id )
       `)
       .eq('id', saleId)
       .eq('tenant_id', tenantId)
@@ -92,6 +92,19 @@ export async function getComprovanteData(
     }
   }
 
+  // Busca IMEIs vendidos (sale_items com product_serial_id preenchido)
+  const serialIds = sale.sale_items.map(i => i.product_serial_id).filter(Boolean) as string[]
+  const serialMap = new Map<string, string>()
+  if (serialIds.length > 0) {
+    const { data: ser } = await sb
+      .from('product_serials')
+      .select('id, serial')
+      .in('id', serialIds)
+    for (const s of (ser ?? []) as { id: string; serial: string }[]) {
+      serialMap.set(s.id, s.serial)
+    }
+  }
+
   // Vendedor: busca user_metadata.full_name de quem operou a venda
   let sellerName: string | null = null
   if (sale.user_id) {
@@ -105,13 +118,19 @@ export async function getComprovanteData(
 
   const defaultWarranty = tenant.warranty_days ?? 90
 
-  const items: ComprovanteItem[] = sale.sale_items.map(it => ({
-    name:           it.name,
-    quantity:       it.quantity,
-    unitPriceCents: it.unit_price_cents,
-    subtotalCents:  it.subtotal_cents,
-    warrantyDays:   (it.product_id ? warrantyMap.get(it.product_id) : null) ?? defaultWarranty,
-  }))
+  const items: ComprovanteItem[] = sale.sale_items.map(it => {
+    const serial = it.product_serial_id ? (serialMap.get(it.product_serial_id) ?? null) : null
+    // Remove sufixo " • IMEI XXX" do nome (já vai aparecer numa linha dedicada)
+    const cleanName = serial ? it.name.replace(/\s*•\s*IMEI\s+\S+/i, '') : it.name
+    return {
+      name:           cleanName,
+      quantity:       it.quantity,
+      unitPriceCents: it.unit_price_cents,
+      subtotalCents:  it.subtotal_cents,
+      warrantyDays:   (it.product_id ? warrantyMap.get(it.product_id) : null) ?? defaultWarranty,
+      serial,
+    }
+  })
 
   const saleNumber = `VND-${sale.id.slice(0, 8).toUpperCase()}`
 

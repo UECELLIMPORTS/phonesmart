@@ -21,6 +21,7 @@ export type ComprovanteItem = {
   unitPriceCents: number
   subtotalCents:  number
   warrantyDays:   number
+  serial?:        string | null   // IMEI/Serial vendido (só celulares com track_serials)
 }
 
 export type ComprovanteData = {
@@ -367,7 +368,9 @@ function ComprovanteDoc({ data }: { data: ComprovanteData }) {
             </View>
             {data.items.map((it, idx) => (
               <View key={idx} style={styles.tableRow}>
-                <Text style={styles.colDescr}>{it.name}</Text>
+                <Text style={styles.colDescr}>
+                  {it.name}{it.serial ? `\nIMEI: ${it.serial}` : ''}
+                </Text>
                 <Text style={styles.colQty}>{it.quantity}</Text>
                 <Text style={styles.colPrice}>{brl(it.unitPriceCents)}</Text>
                 <Text style={styles.colTotal}>{brl(it.subtotalCents)}</Text>
@@ -443,7 +446,9 @@ function ComprovanteDoc({ data }: { data: ComprovanteData }) {
             const validUntil = new Date(new Date(data.saleDate).getTime() + it.warrantyDays * 86400000)
             return (
               <View key={idx} style={styles.tableRow}>
-                <Text style={styles.colDescr}>{it.name}</Text>
+                <Text style={styles.colDescr}>
+                  {it.name}{it.serial ? `\nIMEI: ${it.serial}` : ''}
+                </Text>
                 <Text style={styles.colWarr}>{it.warrantyDays} dias</Text>
                 <Text style={styles.colWarr}>{validUntil.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Text>
               </View>
