@@ -268,6 +268,36 @@ export async function updateServiceOrder(input: unknown): Promise<Result> {
 
   if (error) return { ok: false, error: error.message }
 
+  // WhatsApp post_service: notifica cliente que aparelho está pronto/entregue
+  if (v.status === 'delivered') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sbAny = supabase as any
+    const { data: os } = await sbAny
+      .from('service_orders')
+      .select(`
+        os_number, customer_id, device_description,
+        product_serials:product_serial_id (serial, products(name))
+      `)
+      .eq('id', v.id)
+      .maybeSingle()
+    type OsRow = {
+      os_number: string; customer_id: string | null; device_description: string | null
+      product_serials: { serial: string; products: { name: string } | null } | null
+    }
+    const o = os as OsRow | null
+    if (o?.customer_id) {
+      const aparelho = o.product_serials?.products?.name ?? o.device_description ?? 'seu aparelho'
+      const { scheduleWhatsAppMessage } = await import('@/lib/whatsapp-scheduler')
+      await scheduleWhatsAppMessage({
+        tenantId,
+        type:        'post_service',
+        customerId:  o.customer_id,
+        referenceId: v.id,
+        vars:        { aparelho, os_numero: o.os_number },
+      }).catch(() => null)
+    }
+  }
+
   revalidatePath('/assistencia')
   revalidatePath(`/assistencia/${v.id}`)
   return { ok: true }

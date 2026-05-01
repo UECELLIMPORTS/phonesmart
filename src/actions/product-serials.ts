@@ -322,6 +322,25 @@ export async function acquireDevice(input: unknown): Promise<Result<{ serialId: 
 
   await syncStockQtyFromSerials(tenantId, v.productId, sb)
 
+  // WhatsApp post_acquisition: notifica cedente que recebemos + pagamento ok
+  if (v.acquiredFromType === 'customer' && v.acquiredCustomerId) {
+    const { data: prodData } = await sb
+      .from('products').select('name').eq('id', v.productId).maybeSingle()
+    const valorBRL = (v.costCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    const { scheduleWhatsAppMessage } = await import('@/lib/whatsapp-scheduler')
+    await scheduleWhatsAppMessage({
+      tenantId,
+      type:        'post_acquisition',
+      customerId:  v.acquiredCustomerId,
+      referenceId: (created as { id: string }).id,
+      vars: {
+        aparelho: (prodData as { name: string } | null)?.name ?? 'aparelho',
+        valor:    `R$ ${valorBRL}`,
+        imei:     serialUpper,
+      },
+    }).catch(() => null)
+  }
+
   revalidatePath('/estoque')
   revalidatePath(`/estoque/${v.productId}`)
   revalidatePath('/comprar')

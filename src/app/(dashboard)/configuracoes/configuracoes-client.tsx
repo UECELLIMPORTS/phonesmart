@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   Package, CheckCircle, AlertTriangle, Ban, Loader2, Save,
   Sparkles, ChevronRight, Users, FileText, ImageIcon, Shield, Trash2, Upload, Cake,
+  MessageCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveSettings, type TenantSettings, type StockControlMode } from '@/actions/settings'
@@ -225,6 +226,24 @@ export function ConfiguracoesClient({ initialSettings, isOwner = false, initialE
                 <h2 className="text-sm font-semibold text-text">Fiscal — NF-e, NFC-e, NFS-e</h2>
                 <p className="text-xs text-muted mt-0.5">
                   Configure regime tributário, certificado A1 e ative emissão de notas fiscais
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0" style={{ color: '#94A3B8' }} />
+            </div>
+          </Link>
+
+          <Link href="/configuracoes/whatsapp"
+            className="block rounded-xl border p-4 transition-all hover:border-emerald-400/40"
+            style={{ background: '#1B2638', borderColor: '#2A3650' }}>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg shrink-0"
+                style={{ background: 'rgba(16,185,129,.15)' }}>
+                <MessageCircle className="h-5 w-5" style={{ color: '#10B981' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-sm font-semibold text-text">WhatsApp — Mensagens automáticas</h2>
+                <p className="text-xs text-muted mt-0.5">
+                  Conecte seu WhatsApp e configure follow-ups, aniversário, parcelas e garantia
                 </p>
               </div>
               <ChevronRight className="h-5 w-5 shrink-0" style={{ color: '#94A3B8' }} />
