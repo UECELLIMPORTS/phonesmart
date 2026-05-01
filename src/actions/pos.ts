@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/supabase/server'
 import { getTenantId } from '@/lib/tenant'
 import { tryAutoEmitNfceForSale } from '@/lib/fiscal-emit-core'
 import { markSerialSold } from '@/actions/product-serials'
+import { createInstallmentPlan } from '@/actions/installments'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,12 +68,19 @@ export type CreateSaleInput = {
   discountCents: number
   shippingCents: number
   totalCents: number
-  paymentMethod: 'cash' | 'pix' | 'card' | 'mixed'
+  paymentMethod: 'cash' | 'pix' | 'card' | 'mixed' | 'crediario'
   paymentDetails: Record<string, number> | null
   items: SaleItem[]
   saleChannel?: string | null   // whatsapp | instagram_dm | delivery_online | fisica_balcao | fisica_retirada | outro
   deliveryType?: string | null  // counter | pickup | shipping
   customerOrigin?: string | null // sobrepõe customer.origin (usado pra Consumidor Final)
+  // Sprint 4: crediário interno — quando paymentMethod='crediario', cria plan + parcelas
+  installmentPlan?: {
+    downPaymentCents:  number
+    installmentsCount: number
+    firstDueDate:      string  // YYYY-MM-DD
+    frequency?:        'monthly' | 'biweekly' | 'weekly'
+  }
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -525,6 +533,27 @@ export async function createSale(input: CreateSaleInput): Promise<{ id: string }
       })),
     )
     if (movError) throw new Error(`Erro ao registrar saída de estoque: ${movError.message}`)
+  }
+
+  // Sprint 4: cria plano de crediário (parcelas internas) se solicitado.
+  // Bloqueante — se falhar, levanta o erro pra o user saber que a venda foi
+  // gravada mas o crediário não. UI deve checar e tratar manualmente.
+  if (input.paymentMethod === 'crediario' && input.installmentPlan) {
+    if (!input.customerId) {
+      throw new Error('Crediário exige cliente cadastrado.')
+    }
+    const planRes = await createInstallmentPlan({
+      saleId:            sale.id,
+      customerId:        input.customerId,
+      totalCents:        input.totalCents,
+      downPaymentCents:  input.installmentPlan.downPaymentCents,
+      installmentsCount: input.installmentPlan.installmentsCount,
+      firstDueDate:      input.installmentPlan.firstDueDate,
+      frequency:         input.installmentPlan.frequency ?? 'monthly',
+    })
+    if (!planRes.ok) {
+      throw new Error(`Venda gravada mas crediário falhou: ${planRes.error}`)
+    }
   }
 
   // Modo automático de NFC-e: dispara emissão depois da resposta voltar pro

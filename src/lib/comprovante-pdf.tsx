@@ -109,6 +109,7 @@ function paymentLabel(method: string | null): string {
     case 'debito':
     case 'debit':          return 'Cartão de Débito'
     case 'mixed':          return 'Pagamento Misto'
+    case 'crediario':      return 'Crediário interno (parcelado)'
     case 'boleto':         return 'Boleto'
     case 'transferencia':  return 'Transferência'
     default:               return method || '—'

@@ -34,7 +34,7 @@ type CartItem = {
   costSnapshotCents?:   number   // override: custo do serial (cada IMEI tem custo próprio)
 }
 
-type PaymentMethod = 'cash' | 'pix' | 'card' | 'mixed'
+type PaymentMethod = 'cash' | 'pix' | 'card' | 'mixed' | 'crediario'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -122,6 +122,15 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
   const [mxCash, setMxCash] = useState('')
   const [mxPix, setMxPix]   = useState('')
   const [mxCard, setMxCard] = useState('')
+
+  // Crediário interno (Sprint 4) — só usado quando method === 'crediario'
+  const [crDownStr, setCrDownStr]   = useState('')
+  const [crCount, setCrCount]       = useState('3')
+  const [crFirstDue, setCrFirstDue] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 30)
+    return d.toISOString().slice(0, 10)
+  })
 
   // ── Customer ──
   const [customer, setCustomer]               = useState<Customer>(consumidorFinal)
@@ -427,6 +436,30 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
         return
       }
     }
+    if (method === 'crediario') {
+      if (isDefault) {
+        toast.error('Crediário exige cliente cadastrado.')
+        return
+      }
+      const downCents = parseCents(crDownStr)
+      const count     = parseInt(crCount) || 0
+      if (downCents > total) {
+        toast.error('Entrada maior que o total.')
+        return
+      }
+      if (count < 1 || count > 36) {
+        toast.error('Número de parcelas inválido (1 a 36).')
+        return
+      }
+      if (total - downCents < count) {
+        toast.error('Valor financiado menor que o número de parcelas.')
+        return
+      }
+      if (!crFirstDue) {
+        toast.error('Defina a data da 1ª parcela.')
+        return
+      }
+    }
     setFinalizing(true)
     try {
       await createSale({
@@ -452,6 +485,12 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
           productSerialId:  i.productSerialId ?? null,
           costSnapshotCents: i.costSnapshotCents ?? null,
         })),
+        installmentPlan: method === 'crediario' ? {
+          downPaymentCents:  parseCents(crDownStr),
+          installmentsCount: parseInt(crCount) || 1,
+          firstDueDate:      crFirstDue,
+          frequency:         'monthly' as const,
+        } : undefined,
       })
       // Marca cupom de aniversário como usado (se aplicado nessa venda)
       if (couponApplied && customer.id) {
@@ -460,6 +499,7 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
       toast.success('Venda finalizada com sucesso!')
       setCart([]); setShipping(''); setDiscount('')
       setMethod('pix'); setMxCash(''); setMxPix(''); setMxCard('')
+      setCrDownStr(''); setCrCount('3')
       setSaleChannel(''); setDeliveryType('')
       setConsumerOrigin('passou_na_porta')
       setCouponInput(''); setCouponApplied(null)
@@ -1070,13 +1110,14 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
           <div className="rounded-xl border p-5 space-y-3" style={{ background: '#1B2638', borderColor: '#2A3650' }}>
             <h3 className="text-sm font-semibold text-text">Forma de Pagamento</h3>
 
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {(
                 [
-                  { id: 'cash',  label: 'Dinheiro', color: '#10B981' },
-                  { id: 'pix',   label: 'PIX',      color: '#22C55E' },
-                  { id: 'card',  label: 'Cartão',   color: '#F59E0B' },
-                  { id: 'mixed', label: 'Misto',    color: '#EF4444' },
+                  { id: 'cash',      label: 'Dinheiro', color: '#10B981' },
+                  { id: 'pix',       label: 'PIX',      color: '#22C55E' },
+                  { id: 'card',      label: 'Cartão',   color: '#F59E0B' },
+                  { id: 'mixed',     label: 'Misto',    color: '#EF4444' },
+                  { id: 'crediario', label: 'Crediário', color: '#3B82F6' },
                 ] as { id: PaymentMethod; label: string; color: string }[]
               ).map(({ id, label, color }) => {
                 const active = method === id
@@ -1094,6 +1135,81 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
                 )
               })}
             </div>
+
+            {/* Crediário breakdown */}
+            {method === 'crediario' && (() => {
+              const downCents = parseCents(crDownStr)
+              const count     = Math.max(1, parseInt(crCount) || 1)
+              const financed  = Math.max(0, total - downCents)
+              const perInst   = count > 0 ? Math.floor(financed / count) : 0
+              const remainder = financed - (perInst * count)
+              return (
+                <div className="space-y-3 border-t pt-3" style={{ borderColor: '#2A3650' }}>
+                  {isDefault && (
+                    <p className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-[11px] text-amber-400">
+                      ⚠️ Crediário exige cliente cadastrado. Selecione um cliente acima.
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#94A3B8' }}>Entrada (R$)</p>
+                      <input
+                        value={crDownStr}
+                        onChange={e => setCrDownStr(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full rounded-lg border px-2.5 py-1.5 text-sm text-text outline-none focus:border-accent/60 placeholder:text-muted"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#94A3B8' }}>Nº de parcelas</p>
+                      <input
+                        type="number"
+                        min="1"
+                        max="36"
+                        value={crCount}
+                        onChange={e => setCrCount(e.target.value)}
+                        className="w-full rounded-lg border px-2.5 py-1.5 text-sm text-text outline-none focus:border-accent/60"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#94A3B8' }}>1ª parcela vence em</p>
+                    <input
+                      type="date"
+                      value={crFirstDue}
+                      onChange={e => setCrFirstDue(e.target.value)}
+                      className="w-full rounded-lg border px-2.5 py-1.5 text-sm text-text outline-none focus:border-accent/60"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* Resumo */}
+                  <div className="rounded-lg p-2.5 text-xs space-y-1" style={{ background: '#131C2A', borderColor: '#2A3650' }}>
+                    <div className="flex justify-between">
+                      <span className="text-muted">Total</span>
+                      <span className="font-semibold text-text">{BRL(total)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted">Entrada</span>
+                      <span className="text-text">− {BRL(downCents)}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1" style={{ borderColor: '#2A3650' }}>
+                      <span className="text-muted">Financiado</span>
+                      <span className="font-semibold" style={{ color: '#3B82F6' }}>{BRL(financed)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted">{count}× de</span>
+                      <span className="font-semibold text-text">
+                        {BRL(perInst)}
+                        {remainder > 0 && <span className="text-[10px] text-muted ml-1">(1ª: {BRL(perInst + remainder)})</span>}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Mixed breakdown */}
             {method === 'mixed' && (
