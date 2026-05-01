@@ -8,6 +8,7 @@ import {
 import { toast } from 'sonner'
 import { acquireDevice, type AcquisitionRow } from '@/actions/product-serials'
 import { searchProducts, searchCustomers, type Product, type Customer } from '@/actions/pos'
+import { searchSuppliers, type SupplierRow } from '@/actions/suppliers'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -76,8 +77,13 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const customerDropRef = useRef<HTMLDivElement>(null)
 
-  // Supplier name (free text when fromType=supplier)
-  const [supplierName, setSupplierName] = useState('')
+  // Supplier autocomplete (Sprint 7)
+  const [supplierQuery, setSupplierQuery]     = useState('')
+  const [supplierResults, setSupplierResults] = useState<SupplierRow[]>([])
+  const [supplierDrop, setSupplierDrop]       = useState(false)
+  const [searchingSupplier, setSearchingSupplier] = useState(false)
+  const [selectedSupplier, setSelectedSupplier] = useState<SupplierRow | null>(null)
+  const supplierDropRef = useRef<HTMLDivElement>(null)
 
   const [pending, startTransition] = useTransition()
 
@@ -113,11 +119,27 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
     return () => clearTimeout(t)
   }, [customerQuery, selectedCustomer])
 
+  // ── Supplier search debounce ──
+  useEffect(() => {
+    if (selectedSupplier) return
+    if (supplierQuery.trim().length < 2) { setSupplierResults([]); setSupplierDrop(false); return }
+    const t = setTimeout(async () => {
+      setSearchingSupplier(true)
+      try {
+        const r = await searchSuppliers(supplierQuery)
+        setSupplierResults(r)
+        setSupplierDrop(r.length > 0)
+      } finally { setSearchingSupplier(false) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [supplierQuery, selectedSupplier])
+
   // ── Outside click handlers ──
   useEffect(() => {
     const fn = (e: MouseEvent) => {
       if (productDropRef.current && !productDropRef.current.contains(e.target as Node)) setProductDrop(false)
       if (customerDropRef.current && !customerDropRef.current.contains(e.target as Node)) setCustomerDrop(false)
+      if (supplierDropRef.current && !supplierDropRef.current.contains(e.target as Node)) setSupplierDrop(false)
     }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
@@ -145,12 +167,24 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
     setCustomerQuery('')
   }
 
+  function pickSupplier(s: SupplierRow) {
+    setSelectedSupplier(s)
+    setSupplierQuery(s.name)
+    setSupplierDrop(false)
+  }
+
+  function clearSupplier() {
+    setSelectedSupplier(null)
+    setSupplierQuery('')
+  }
+
   function resetForm() {
     setSelectedProduct(null); setProductQuery('')
     setSerial(''); setSerial2(''); setCostStr('')
     setCondition('B'); setFromType('customer'); setPaymentMethod('')
     setNotes('')
-    setCustomerQuery(''); setSelectedCustomer(null); setSupplierName('')
+    setCustomerQuery(''); setSelectedCustomer(null)
+    setSupplierQuery(''); setSelectedSupplier(null)
   }
 
   function submit() {
@@ -171,8 +205,8 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
       toast.error('Selecione o cliente vendedor (ou troque a origem).')
       return
     }
-    if (fromType === 'supplier' && !supplierName.trim()) {
-      toast.error('Informe o nome do fornecedor.')
+    if (fromType === 'supplier' && !selectedSupplier) {
+      toast.error('Selecione um fornecedor cadastrado (ou cadastre um novo em Fornecedores).')
       return
     }
 
@@ -185,7 +219,7 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
         condition,
         acquiredFromType:   fromType,
         acquiredCustomerId: fromType === 'customer' ? selectedCustomer?.id ?? null : null,
-        supplierName:       fromType === 'supplier' ? supplierName.trim() : null,
+        supplierId:         fromType === 'supplier' ? selectedSupplier?.id ?? null : null,
         paymentMethod:      paymentMethod || null,
         notes:              notes.trim() || null,
       })
@@ -209,7 +243,7 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
         acquiredFromType:   fromType,
         acquiredCustomerId: fromType === 'customer' ? selectedCustomer?.id ?? null : null,
         customerName:       fromType === 'customer' ? selectedCustomer?.full_name ?? null : null,
-        supplierName:       fromType === 'supplier' ? supplierName.trim() : null,
+        supplierName:       fromType === 'supplier' ? selectedSupplier?.name ?? null : null,
         paymentMethod:      paymentMethod || null,
         notes:              notes.trim() || null,
       }, ...prev])
@@ -422,16 +456,57 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
             </div>
           )}
 
-          {/* Fornecedor (se origem=supplier) */}
+          {/* Fornecedor (se origem=supplier) — Sprint 7: autocomplete em vez de texto livre */}
           {fromType === 'supplier' && (
-            <div>
+            <div ref={supplierDropRef} className="relative">
               <label className="mb-1 block text-sm font-medium text-zinc-700">Fornecedor</label>
-              <input
-                value={supplierName}
-                onChange={e => setSupplierName(e.target.value)}
-                placeholder="Ex: Distribuidora Norte"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
-              />
+              {selectedSupplier ? (
+                <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-zinc-900 truncate">{selectedSupplier.name}</p>
+                    <div className="text-xs text-zinc-500 flex flex-wrap gap-x-2">
+                      {selectedSupplier.tradeName && <span>{selectedSupplier.tradeName}</span>}
+                      {selectedSupplier.cpfCnpj && <span>CNPJ: {selectedSupplier.cpfCnpj}</span>}
+                      {selectedSupplier.contactName && <span>Contato: {selectedSupplier.contactName}</span>}
+                    </div>
+                  </div>
+                  <button onClick={clearSupplier} className="text-zinc-500 hover:text-rose-600">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    value={supplierQuery}
+                    onChange={e => setSupplierQuery(e.target.value)}
+                    placeholder="Nome, CNPJ ou nome fantasia"
+                    className="w-full rounded-lg border border-zinc-200 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                  {searchingSupplier && (
+                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" />
+                  )}
+                  {supplierDrop && (
+                    <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-200 bg-white shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                      {supplierResults.map(s => (
+                        <button
+                          key={s.id}
+                          onMouseDown={() => pickSupplier(s)}
+                          className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
+                        >
+                          <p className="font-medium text-zinc-900">{s.name}</p>
+                          <p className="text-xs text-zinc-500">
+                            {[s.tradeName, s.cpfCnpj].filter(Boolean).join(' · ')}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="mt-1 text-xs text-zinc-500">
+                Não achou? <a href="/fornecedores" className="text-blue-600 hover:underline">Cadastre o fornecedor</a> primeiro.
+              </p>
             </div>
           )}
 

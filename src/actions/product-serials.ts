@@ -50,7 +50,8 @@ export type AcquireDeviceInput = {
   condition:          'A' | 'B' | 'C' | 'defective'
   acquiredFromType:   'customer' | 'supplier' | 'trade_in' | 'other'
   acquiredCustomerId?: string | null
-  supplierName?:      string | null
+  supplierId?:        string | null   // FK pro fornecedor cadastrado (Sprint 7)
+  supplierName?:      string | null   // legacy: texto livre quando user não cadastrou ainda
   paymentMethod?:     'cash' | 'pix' | 'transfer' | 'card' | 'trade_in_credit' | 'mixed' | null
   tradeInSaleId?:     string | null
   notes?:             string | null
@@ -260,6 +261,7 @@ const AcquireSchema = z.object({
   condition:          z.enum(['A', 'B', 'C', 'defective']),
   acquiredFromType:   z.enum(['customer', 'supplier', 'trade_in', 'other']),
   acquiredCustomerId: z.string().uuid().optional().nullable(),
+  supplierId:         z.string().uuid().optional().nullable(),
   supplierName:       z.string().max(120).optional().nullable(),
   paymentMethod:      z.enum(['cash', 'pix', 'transfer', 'card', 'trade_in_credit', 'mixed']).optional().nullable(),
   tradeInSaleId:      z.string().uuid().optional().nullable(),
@@ -307,6 +309,7 @@ export async function acquireDevice(input: unknown): Promise<Result<{ serialId: 
       acquired_at:          v.acquiredAt || new Date().toISOString(),
       acquired_from_type:   v.acquiredFromType,
       acquired_customer_id: v.acquiredCustomerId || null,
+      supplier_id:          v.supplierId || null,
       supplier_name:        v.supplierName?.trim() || null,
       condition:            v.condition,
       payment_method:       v.paymentMethod || null,
@@ -356,9 +359,10 @@ export async function listAcquisitions(limit = 100): Promise<AcquisitionRow[]> {
     .from('product_serials')
     .select(`
       id, serial, status, cost_cents, condition, acquired_at, acquired_from_type,
-      acquired_customer_id, supplier_name, payment_method, notes,
+      acquired_customer_id, supplier_id, supplier_name, payment_method, notes,
       products!inner(id, name),
-      customers:acquired_customer_id (full_name)
+      customers:acquired_customer_id (full_name),
+      suppliers:supplier_id (name)
     `)
     .eq('tenant_id', tenantId)
     .not('acquired_at', 'is', null)
@@ -371,10 +375,11 @@ export async function listAcquisitions(limit = 100): Promise<AcquisitionRow[]> {
     id: string; serial: string; status: ProductSerial['status']; cost_cents: number | null
     condition: 'A' | 'B' | 'C' | 'defective' | null; acquired_at: string | null
     acquired_from_type: 'customer' | 'supplier' | 'trade_in' | 'other' | null
-    acquired_customer_id: string | null; supplier_name: string | null
+    acquired_customer_id: string | null; supplier_id: string | null; supplier_name: string | null
     payment_method: string | null; notes: string | null
     products: { id: string; name: string } | null
     customers: { full_name: string } | null
+    suppliers: { name: string } | null
   }
 
   return ((data ?? []) as Row[])
@@ -391,7 +396,8 @@ export async function listAcquisitions(limit = 100): Promise<AcquisitionRow[]> {
       acquiredFromType:   r.acquired_from_type,
       acquiredCustomerId: r.acquired_customer_id,
       customerName:       r.customers?.full_name ?? null,
-      supplierName:       r.supplier_name,
+      // Prefere o nome do fornecedor cadastrado (FK) sobre o texto livre legado
+      supplierName:       r.suppliers?.name ?? r.supplier_name,
       paymentMethod:      r.payment_method,
       notes:              r.notes,
     }))

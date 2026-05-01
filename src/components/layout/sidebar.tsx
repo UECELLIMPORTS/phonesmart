@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Package, DollarSign,
   Users, BarChart2, Target, TrendingUp, Settings, Zap, PieChart, Store, FileText, Wallet, Cake,
-  Smartphone, Wrench, CalendarClock,
+  Smartphone, Wrench, CalendarClock, Building2,
 } from 'lucide-react'
 import type { ModuleKey } from '@/lib/permissions-shared'
 
@@ -22,6 +22,7 @@ export const NAV: {
   { href: '/pos',               icon: ShoppingCart,    label: 'Frente de Caixa', moduleKey: 'pos' },
   { href: '/comprar',           icon: Smartphone,      label: 'Comprar Aparelho', moduleKey: 'estoque' },
   { href: '/estoque',           icon: Package,         label: 'Estoque',         moduleKey: 'estoque' },
+  { href: '/fornecedores',      icon: Building2,       label: 'Fornecedores',    moduleKey: 'estoque' },
   { href: '/assistencia',       icon: Wrench,          label: 'Assistência',     moduleKey: 'estoque' },
   { href: '/financeiro',        icon: DollarSign,      label: 'Financeiro',      moduleKey: 'financeiro' },
   { href: '/financeiro/parcelas', icon: CalendarClock, label: 'Parcelas',        moduleKey: 'financeiro' },
