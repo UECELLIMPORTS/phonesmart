@@ -4,11 +4,15 @@ import { useState, useEffect, useTransition, useRef } from 'react'
 import {
   Search, Loader2, ShoppingCart, Smartphone, Plus, X,
   CheckCircle2, ArrowRight, User, Building2, Repeat, ChevronDown,
+  FileText, MessageCircle, Mail,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { acquireDevice, type AcquisitionRow } from '@/actions/product-serials'
 import { searchProducts, searchCustomers, type Product, type Customer } from '@/actions/pos'
 import { searchSuppliers, type SupplierRow } from '@/actions/suppliers'
+import {
+  getOrCreateAcquisitionShareToken, sendAcquisitionReceiptEmail, getSellerContact,
+} from '@/actions/acquisition-receipt'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -86,6 +90,75 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
   const supplierDropRef = useRef<HTMLDivElement>(null)
 
   const [pending, startTransition] = useTransition()
+
+  // Sprint 9: modal de envio por email do recibo
+  const [emailModal, setEmailModal] = useState<{ serialId: string; sellerName: string; toEmail: string } | null>(null)
+  const [sharingSerialId, setSharingSerialId] = useState<string | null>(null)
+  const [sendingEmail, setSendingEmail] = useState(false)
+
+  async function handleShareWhatsapp(a: AcquisitionRow) {
+    setSharingSerialId(a.serialId)
+    try {
+      const tokenRes = await getOrCreateAcquisitionShareToken(a.serialId)
+      if (!tokenRes.ok) {
+        toast.error(tokenRes.error)
+        return
+      }
+      const contactRes = await getSellerContact(a.serialId)
+      const sellerName = contactRes.ok ? contactRes.data!.name : 'cedente'
+      const whatsapp   = contactRes.ok ? contactRes.data!.whatsapp : null
+
+      const greeting = sellerName ? `Olá, ${sellerName.split(' ')[0]}! ` : 'Olá! '
+      const msg = encodeURIComponent(
+        `${greeting}Segue o recibo da compra do seu aparelho:\n\n${tokenRes.data!.url}\n\nObrigado!`
+      )
+
+      if (whatsapp) {
+        const digits = whatsapp.replace(/\D/g, '')
+        const phone  = digits.startsWith('55') ? digits : '55' + digits
+        window.open(`https://wa.me/${phone}?text=${msg}`, '_blank')
+      } else {
+        // Sem whatsapp cadastrado, copia o link e abre wa.me sem destinatário
+        await navigator.clipboard.writeText(tokenRes.data!.url).catch(() => null)
+        toast.info('Link copiado. Cedente sem WhatsApp cadastrado — cole no contato direto.')
+        window.open(`https://wa.me/?text=${msg}`, '_blank')
+      }
+    } finally {
+      setSharingSerialId(null)
+    }
+  }
+
+  async function handleOpenEmail(a: AcquisitionRow) {
+    const contactRes = await getSellerContact(a.serialId)
+    if (!contactRes.ok) {
+      toast.error(contactRes.error)
+      return
+    }
+    setEmailModal({
+      serialId:   a.serialId,
+      sellerName: contactRes.data!.name || 'Cedente',
+      toEmail:    contactRes.data!.email ?? '',
+    })
+  }
+
+  function submitEmail() {
+    if (!emailModal) return
+    if (!emailModal.toEmail.trim() || !/.+@.+\..+/.test(emailModal.toEmail)) {
+      toast.error('E-mail inválido.')
+      return
+    }
+    setSendingEmail(true)
+    sendAcquisitionReceiptEmail({ serialId: emailModal.serialId, toEmail: emailModal.toEmail.trim() })
+      .then(res => {
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        toast.success('Recibo enviado por email!')
+        setEmailModal(null)
+      })
+      .finally(() => setSendingEmail(false))
+  }
 
   // ── Product search debounce ──
   useEffect(() => {
@@ -621,6 +694,35 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                         </span>
                       )}
                     </div>
+                    {/* Sprint 9: botões de recibo */}
+                    <div className="mt-2.5 flex flex-wrap gap-1.5 pt-2 border-t border-zinc-100">
+                      <a
+                        href={`/api/recibo-compra/${a.serialId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100"
+                      >
+                        <FileText className="h-3 w-3" />
+                        Ver recibo
+                      </a>
+                      <button
+                        onClick={() => handleShareWhatsapp(a)}
+                        disabled={sharingSerialId === a.serialId}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        {sharingSerialId === a.serialId
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <MessageCircle className="h-3 w-3" />}
+                        WhatsApp
+                      </button>
+                      <button
+                        onClick={() => handleOpenEmail(a)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50"
+                      >
+                        <Mail className="h-3 w-3" />
+                        Email
+                      </button>
+                    </div>
                   </li>
                 )
               })}
@@ -628,6 +730,60 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
           )}
         </div>
       </div>
+
+      {/* Sprint 9: modal de envio do recibo por email */}
+      {emailModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={e => { if (e.target === e.currentTarget) setEmailModal(null) }}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3">
+              <h3 className="text-base font-semibold text-zinc-900">Enviar recibo por email</h3>
+              <button onClick={() => setEmailModal(null)} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs">
+                <p className="font-semibold text-blue-900">{emailModal.sellerName}</p>
+                <p className="text-blue-700">PDF do recibo será anexado ao email.</p>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-700">Email do destinatário</label>
+                <input
+                  type="email"
+                  value={emailModal.toEmail}
+                  onChange={e => setEmailModal(m => m ? { ...m, toEmail: e.target.value } : m)}
+                  placeholder="cliente@exemplo.com"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                ⚠️ Envio por email exige <strong>RESEND_API_KEY</strong> configurado. Se não tiver, use o botão WhatsApp.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-3">
+              <button
+                onClick={() => setEmailModal(null)}
+                disabled={sendingEmail}
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={submitEmail}
+                disabled={sendingEmail}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
+                {sendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                Enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
