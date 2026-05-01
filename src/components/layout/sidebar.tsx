@@ -32,6 +32,7 @@ export const NAV: {
   { href: '/erp-clientes',      icon: PieChart,        label: 'ERP Clientes',    moduleKey: 'erp_clientes' },
   { href: '/analytics/canais',  icon: Store,           label: 'Canais',          moduleKey: 'analytics_canais' },
   { href: '/relatorios',        icon: BarChart2,       label: 'Relatórios',      moduleKey: 'relatorios' },
+  { href: '/relatorios/celular', icon: Smartphone,     label: 'Painel da Loja',  moduleKey: 'relatorios' },
   { href: '/crm',               icon: Target,          label: 'CRM',             moduleKey: 'crm' },
   { href: '/meta-ads',          icon: TrendingUp,      label: 'Meta Ads',        moduleKey: 'meta_ads' },
   { href: '/notas-fiscais',     icon: FileText,        label: 'Notas Fiscais',   moduleKey: 'notas_fiscais' },
