@@ -6,7 +6,8 @@ import {
   Loader2, X, DollarSign, User as UserIcon, Phone,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { markInstallmentPaid, type InstallmentRow } from '@/actions/installments'
+import { markInstallmentPaid, setRemindersEnabled, type InstallmentRow } from '@/actions/installments'
+import { Bell, BellOff } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,9 +49,35 @@ function whatsappLink(whatsapp: string | null, customerName: string, amount: num
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ParcelasClient({ initialInstallments }: { initialInstallments: InstallmentRow[] }) {
+export function ParcelasClient({
+  initialInstallments,
+  initialRemindersEnabled,
+}: {
+  initialInstallments:    InstallmentRow[]
+  initialRemindersEnabled: boolean
+}) {
   const [items, setItems] = useState<InstallmentRow[]>(initialInstallments)
   const [filter, setFilter] = useState<'late' | 'pending' | 'all'>('all')
+  const [remindersEnabled, setRemindersEnabledState] = useState(initialRemindersEnabled)
+  const [togglingReminders, setTogglingReminders] = useState(false)
+
+  function toggleReminders() {
+    const next = !remindersEnabled
+    setRemindersEnabledState(next)
+    setTogglingReminders(true)
+    setRemindersEnabled(next)
+      .then(res => {
+        if (!res.ok) {
+          toast.error(res.error)
+          setRemindersEnabledState(!next)
+          return
+        }
+        toast.success(next
+          ? 'Lembretes automáticos ATIVADOS. Cron diário (09h) avisa clientes.'
+          : 'Lembretes automáticos DESATIVADOS. Cobrança fica só manual.')
+      })
+      .finally(() => setTogglingReminders(false))
+  }
 
   // Modal de pagamento
   const [paying, setPaying] = useState<InstallmentRow | null>(null)
@@ -118,11 +145,28 @@ export function ParcelasClient({ initialInstallments }: { initialInstallments: I
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text">Parcelas a receber</h1>
-        <p className="mt-1 text-sm text-muted">
-          Crediário interno — parcelas pendentes e atrasadas. Cobre via WhatsApp ou marque como pago.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Parcelas a receber</h1>
+          <p className="mt-1 text-sm text-muted">
+            Crediário interno — parcelas pendentes e atrasadas. Cobre via WhatsApp ou marque como pago.
+          </p>
+        </div>
+        <button
+          onClick={toggleReminders}
+          disabled={togglingReminders}
+          className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition ${
+            remindersEnabled
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+          }`}
+          title={remindersEnabled
+            ? 'Cron diário (09h) envia email pra clientes com parcelas em D-7/D-3/D-1/D/D+1/D+3'
+            : 'Lembretes automáticos desativados — cobrança fica só manual'}
+        >
+          {remindersEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+          Lembretes automáticos: {remindersEnabled ? 'ON' : 'OFF'}
+        </button>
       </div>
 
       {/* Resumo */}

@@ -270,6 +270,42 @@ export async function markInstallmentPaid(input: unknown): Promise<Result> {
 // getCustomerCreditScore — % de parcelas pagas no prazo (heurística simples)
 // ──────────────────────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────────────────────
+// setRemindersEnabled / getRemindersEnabled (Sprint 8)
+// ──────────────────────────────────────────────────────────────────────────
+
+export async function getRemindersEnabled(): Promise<boolean> {
+  const { supabase, user } = await requireAuth()
+  const tenantId = getTenantId(user)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data } = await sb
+    .from('tenants')
+    .select('installment_reminders_enabled')
+    .eq('id', tenantId)
+    .maybeSingle()
+
+  return (data as { installment_reminders_enabled: boolean } | null)?.installment_reminders_enabled ?? true
+}
+
+export async function setRemindersEnabled(enabled: boolean): Promise<Result> {
+  const { supabase, user } = await requireAuth()
+  const tenantId = getTenantId(user)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { error } = await sb
+    .from('tenants')
+    .update({ installment_reminders_enabled: enabled })
+    .eq('id', tenantId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/financeiro/parcelas')
+  return { ok: true }
+}
+
 export type CreditScore = {
   totalInstallments:  number
   paidOnTime:         number
