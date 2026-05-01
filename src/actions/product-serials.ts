@@ -31,6 +31,30 @@ export type ProductSerial = {
   costCents:        number | null
   notes:            string | null
   createdAt:        string
+  // Sprint 2: dados de aquisição (compra de aparelho usado)
+  acquiredAt?:        string | null
+  acquiredFromType?:  'customer' | 'supplier' | 'trade_in' | 'other' | null
+  acquiredCustomerId?: string | null
+  supplierName?:      string | null
+  condition?:         'A' | 'B' | 'C' | 'defective' | null
+  paymentMethod?:     'cash' | 'pix' | 'transfer' | 'card' | 'trade_in_credit' | 'mixed' | null
+  tradeInSaleId?:     string | null
+}
+
+export type AcquireDeviceInput = {
+  productId:          string
+  serial:             string
+  serial2?:           string | null
+  manufacturerSn?:    string | null
+  costCents:          number
+  condition:          'A' | 'B' | 'C' | 'defective'
+  acquiredFromType:   'customer' | 'supplier' | 'trade_in' | 'other'
+  acquiredCustomerId?: string | null
+  supplierName?:      string | null
+  paymentMethod?:     'cash' | 'pix' | 'transfer' | 'card' | 'trade_in_credit' | 'mixed' | null
+  tradeInSaleId?:     string | null
+  notes?:             string | null
+  acquiredAt?:        string  // ISO; default = now()
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -221,6 +245,201 @@ export async function deleteSerial(id: string): Promise<Result> {
   revalidatePath('/estoque')
   revalidatePath(`/estoque/${existing.product_id}`)
   return { ok: true }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// acquireDevice — registra compra de aparelho usado (cria serial + dados de aquisição)
+// ──────────────────────────────────────────────────────────────────────────
+
+const AcquireSchema = z.object({
+  productId:          z.string().uuid(),
+  serial:             z.string().min(4).max(50),
+  serial2:            z.string().max(50).optional().nullable(),
+  manufacturerSn:     z.string().max(50).optional().nullable(),
+  costCents:          z.number().int().min(0),
+  condition:          z.enum(['A', 'B', 'C', 'defective']),
+  acquiredFromType:   z.enum(['customer', 'supplier', 'trade_in', 'other']),
+  acquiredCustomerId: z.string().uuid().optional().nullable(),
+  supplierName:       z.string().max(120).optional().nullable(),
+  paymentMethod:      z.enum(['cash', 'pix', 'transfer', 'card', 'trade_in_credit', 'mixed']).optional().nullable(),
+  tradeInSaleId:      z.string().uuid().optional().nullable(),
+  notes:              z.string().max(500).optional().nullable(),
+  acquiredAt:         z.string().optional(),
+})
+
+export async function acquireDevice(input: unknown): Promise<Result<{ serialId: string }>> {
+  const parsed = AcquireSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' }
+
+  const { supabase, user } = await requireAuth()
+  const tenantId = getTenantId(user)
+  const v = parsed.data
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  // Confere produto e força track_serials=true (se compra de usado, faz sentido rastrear)
+  const { data: prod } = await sb
+    .from('products').select('id, track_serials').eq('id', v.productId).eq('tenant_id', tenantId).maybeSingle()
+  if (!prod) return { ok: false, error: 'Produto não encontrado.' }
+  if (!prod.track_serials) {
+    await sb.from('products').update({ track_serials: true }).eq('id', v.productId).eq('tenant_id', tenantId)
+  }
+
+  const serialUpper = v.serial.trim().toUpperCase()
+
+  // Checa duplicata
+  const { data: dup } = await sb
+    .from('product_serials').select('id').eq('tenant_id', tenantId).eq('serial', serialUpper).maybeSingle()
+  if (dup) return { ok: false, error: `IMEI ${serialUpper} já cadastrado.` }
+
+  const { data: created, error } = await sb
+    .from('product_serials')
+    .insert({
+      tenant_id:            tenantId,
+      product_id:           v.productId,
+      serial:               serialUpper,
+      serial_2:             v.serial2?.trim().toUpperCase() || null,
+      manufacturer_sn:      v.manufacturerSn?.trim() || null,
+      status:               'available',
+      cost_cents:           v.costCents,
+      notes:                v.notes?.trim() || null,
+      acquired_at:          v.acquiredAt || new Date().toISOString(),
+      acquired_from_type:   v.acquiredFromType,
+      acquired_customer_id: v.acquiredCustomerId || null,
+      supplier_name:        v.supplierName?.trim() || null,
+      condition:            v.condition,
+      payment_method:       v.paymentMethod || null,
+      trade_in_sale_id:     v.tradeInSaleId || null,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+
+  await syncStockQtyFromSerials(tenantId, v.productId, sb)
+
+  revalidatePath('/estoque')
+  revalidatePath(`/estoque/${v.productId}`)
+  revalidatePath('/comprar')
+  return { ok: true, data: { serialId: (created as { id: string }).id } }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// listAcquisitions — lista compras de aparelhos (Sprint 2)
+// ──────────────────────────────────────────────────────────────────────────
+
+export type AcquisitionRow = {
+  serialId:           string
+  serial:             string
+  productId:          string
+  productName:        string
+  costCents:          number
+  status:             ProductSerial['status']
+  condition:          'A' | 'B' | 'C' | 'defective' | null
+  acquiredAt:         string | null
+  acquiredFromType:   'customer' | 'supplier' | 'trade_in' | 'other' | null
+  acquiredCustomerId: string | null
+  customerName:       string | null
+  supplierName:       string | null
+  paymentMethod:      string | null
+  notes:              string | null
+}
+
+export async function listAcquisitions(limit = 100): Promise<AcquisitionRow[]> {
+  const { supabase, user } = await requireAuth()
+  const tenantId = getTenantId(user)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data, error } = await sb
+    .from('product_serials')
+    .select(`
+      id, serial, status, cost_cents, condition, acquired_at, acquired_from_type,
+      acquired_customer_id, supplier_name, payment_method, notes,
+      products!inner(id, name),
+      customers:acquired_customer_id (full_name)
+    `)
+    .eq('tenant_id', tenantId)
+    .not('acquired_at', 'is', null)
+    .order('acquired_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw new Error(error.message)
+
+  type Row = {
+    id: string; serial: string; status: ProductSerial['status']; cost_cents: number | null
+    condition: 'A' | 'B' | 'C' | 'defective' | null; acquired_at: string | null
+    acquired_from_type: 'customer' | 'supplier' | 'trade_in' | 'other' | null
+    acquired_customer_id: string | null; supplier_name: string | null
+    payment_method: string | null; notes: string | null
+    products: { id: string; name: string } | null
+    customers: { full_name: string } | null
+  }
+
+  return ((data ?? []) as Row[])
+    .filter(r => r.products)
+    .map(r => ({
+      serialId:           r.id,
+      serial:             r.serial,
+      productId:          r.products!.id,
+      productName:        r.products!.name,
+      costCents:          r.cost_cents ?? 0,
+      status:             r.status,
+      condition:          r.condition,
+      acquiredAt:         r.acquired_at,
+      acquiredFromType:   r.acquired_from_type,
+      acquiredCustomerId: r.acquired_customer_id,
+      customerName:       r.customers?.full_name ?? null,
+      supplierName:       r.supplier_name,
+      paymentMethod:      r.payment_method,
+      notes:              r.notes,
+    }))
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// getDeviceProfit — comprou por X, vendeu por Y, lucro Z
+// ──────────────────────────────────────────────────────────────────────────
+
+export type DeviceProfit = {
+  acquired:   { costCents: number; at: string | null } | null
+  sold:       { priceCents: number; at: string | null; saleId: string | null } | null
+  profitCents: number | null
+}
+
+export async function getDeviceProfit(serialId: string): Promise<DeviceProfit> {
+  const { supabase, user } = await requireAuth()
+  const tenantId = getTenantId(user)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { data: serial } = await sb
+    .from('product_serials')
+    .select('cost_cents, acquired_at, sale_item_id')
+    .eq('id', serialId).eq('tenant_id', tenantId).maybeSingle()
+
+  if (!serial) return { acquired: null, sold: null, profitCents: null }
+
+  type SerialRow = { cost_cents: number | null; acquired_at: string | null; sale_item_id: string | null }
+  const s = serial as SerialRow
+  const acquired = { costCents: s.cost_cents ?? 0, at: s.acquired_at }
+
+  let sold: DeviceProfit['sold'] = null
+  if (s.sale_item_id) {
+    const { data: item } = await sb
+      .from('sale_items')
+      .select('unit_price_cents, sale_id, sales(created_at)')
+      .eq('id', s.sale_item_id)
+      .maybeSingle()
+    type ItemRow = { unit_price_cents: number; sale_id: string; sales: { created_at: string } | null }
+    if (item) {
+      const it = item as ItemRow
+      sold = { priceCents: it.unit_price_cents, at: it.sales?.created_at ?? null, saleId: it.sale_id }
+    }
+  }
+
+  const profitCents = sold ? sold.priceCents - acquired.costCents : null
+  return { acquired, sold, profitCents }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

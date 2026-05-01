@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Package, DollarSign,
   Users, BarChart2, Target, TrendingUp, Settings, Zap, PieChart, Store, FileText, Wallet, Cake,
+  Smartphone,
 } from 'lucide-react'
 import type { ModuleKey } from '@/lib/permissions-shared'
 
@@ -19,6 +20,7 @@ export const NAV: {
 }[] = [
   { href: '/',                  icon: LayoutDashboard, label: 'Dashboard',       moduleKey: 'dashboard' },
   { href: '/pos',               icon: ShoppingCart,    label: 'Frente de Caixa', moduleKey: 'pos' },
+  { href: '/comprar',           icon: Smartphone,      label: 'Comprar Aparelho', moduleKey: 'estoque' },
   { href: '/estoque',           icon: Package,         label: 'Estoque',         moduleKey: 'estoque' },
   { href: '/financeiro',        icon: DollarSign,      label: 'Financeiro',      moduleKey: 'financeiro' },
   { href: '/gastos',            icon: Wallet,          label: 'Gastos',          moduleKey: 'gastos' },
