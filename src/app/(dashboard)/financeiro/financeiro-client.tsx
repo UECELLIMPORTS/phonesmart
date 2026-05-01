@@ -29,6 +29,7 @@ import { CampaignCodePicker } from '@/components/meta-ads/campaign-code-picker'
 import { SALE_CHANNEL_OPTIONS_PICKABLE, DELIVERY_TYPE_OPTIONS, channelLabel, channelColor, deliveryLabel, type SaleChannel, type DeliveryType } from '@/lib/sale-channels'
 import { updateServiceOrderChannel, updateSaleChannel } from '@/actions/sales-channels'
 import { emitNfceFromSale } from '@/actions/fiscal-emit'
+import { ReturnSaleModal } from './return-sale-modal'
 import {
   getSaleContact, getOrCreateShareToken, sendComprovanteEmail,
 } from '@/actions/comprovante'
@@ -186,6 +187,8 @@ export function FinanceiroClient({ initialRows }: { initialRows: FinanceiroRow[]
 
   // Modais de cancelar / reativar
   const [confirmCancel, setConfirmCancel]         = useState<FinanceiroRow | null>(null)
+  // Sprint 10: modal de devolução completo (substitui o cancelamento simples pra ERP)
+  const [returnSaleId, setReturnSaleId]           = useState<string | null>(null)
   const [confirmReactivate, setConfirmReactivate] = useState<FinanceiroRow | null>(null)
 
   // Filtros
@@ -1578,9 +1581,13 @@ export function FinanceiroClient({ initialRows }: { initialRows: FinanceiroRow[]
                         ) : (
                           <MenuItem
                             icon={<XCircle className="h-5 w-5 shrink-0 pointer-events-none" style={{ color: '#EF4444' }} />}
-                            label="Cancelar"
+                            label={row.source === 'erp' ? 'Aceitar devolução' : 'Cancelar'}
                             accentColor="#EF4444"
-                            onClick={() => { setOpenMenu(null); setConfirmCancel(row) }}
+                            onClick={() => {
+                              setOpenMenu(null)
+                              if (row.source === 'erp') setReturnSaleId(row.rawId)
+                              else setConfirmCancel(row)
+                            }}
                           />
                         )}
                         {/* Excluir — só ERP cancelado */}
@@ -1605,7 +1612,19 @@ export function FinanceiroClient({ initialRows }: { initialRows: FinanceiroRow[]
         )}
       </div>
 
-      {/* ── Modal Cancelar ────────────────────────────────────────────────────── */}
+      {/* ── Modal Devolução (Sprint 10) — para vendas ERP ──────────────────────── */}
+      {returnSaleId && (
+        <ReturnSaleModal
+          saleId={returnSaleId}
+          onClose={() => setReturnSaleId(null)}
+          onSuccess={() => {
+            setRows(rs => rs.map(r => r.rawId === returnSaleId ? { ...r, cancelled: true } : r))
+            setReturnSaleId(null)
+          }}
+        />
+      )}
+
+      {/* ── Modal Cancelar (CheckSmart OS) ────────────────────────────────────── */}
       {confirmCancel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
           <div className="w-full max-w-sm rounded-2xl border p-6 space-y-4" style={{ background: '#131C2A', borderColor: '#2A3650' }}>
