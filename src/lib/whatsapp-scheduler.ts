@@ -22,6 +22,7 @@ export type WhatsAppMessageType =
   | 'warranty_expiring'
   | 'birthday_month'
   | 'birthday_day'
+  | 'inactive_customer'
 
 type ScheduleParams = {
   tenantId:    string

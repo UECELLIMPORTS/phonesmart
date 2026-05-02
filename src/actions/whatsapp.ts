@@ -238,6 +238,10 @@ export type TemplateRow = {
   body:         string
   sendEmail:    boolean
   emailSubject: string | null
+  inactivityDays?:    number | null
+  couponCode?:        string | null
+  couponDiscountPct?: number | null
+  couponValidDays?:   number | null
 }
 
 // Templates default por tipo (criados na primeira leitura se faltarem)
@@ -246,6 +250,10 @@ const DEFAULT_TEMPLATES: Record<string, {
   body: string
   sendEmail: boolean
   emailSubject?: string
+  inactivityDays?: number
+  couponCode?: string
+  couponDiscountPct?: number
+  couponValidDays?: number
 }> = {
   post_sale: {
     delayMinutes: 24 * 60,
@@ -312,6 +320,25 @@ Hoje é seu dia! Aqui da {loja} desejamos muita felicidade e saúde.
 
 Lembrando que seu cupom *ANIV{ano}* segue ativo até dia {ultimo_dia_mes}. 🎁`,
   },
+  inactive_customer: {
+    delayMinutes:      0,
+    sendEmail:         true,
+    emailSubject:      'Sentimos sua falta! 🎁',
+    inactivityDays:    90,
+    couponCode:        'VOLTA15',
+    couponDiscountPct: 15,
+    couponValidDays:   15,
+    body: `Oi {nome}, faz tempo! 😢
+
+Faz {dias_sem_comprar} dias que você não passa aqui na {loja}. Senti sua falta!
+
+Pra te receber de volta com carinho, preparei:
+
+🎁 Cupom *{cupom}* — {desconto}% de desconto
+📅 Válido até {valido_ate}
+
+Te espero, viu?`,
+  },
 }
 
 async function ensureDefaults(tenantId: string, sb: unknown): Promise<void> {
@@ -326,13 +353,17 @@ async function ensureDefaults(tenantId: string, sb: unknown): Promise<void> {
   const missing = Object.entries(DEFAULT_TEMPLATES)
     .filter(([type]) => !existingTypes.has(type))
     .map(([type, cfg]) => ({
-      tenant_id:     tenantId,
+      tenant_id:           tenantId,
       type,
-      enabled:       true,
-      delay_minutes: cfg.delayMinutes,
-      body:          cfg.body,
-      send_email:    cfg.sendEmail,
-      email_subject: cfg.emailSubject ?? null,
+      enabled:             true,
+      delay_minutes:       cfg.delayMinutes,
+      body:                cfg.body,
+      send_email:          cfg.sendEmail,
+      email_subject:       cfg.emailSubject ?? null,
+      inactivity_days:     cfg.inactivityDays ?? null,
+      coupon_code:         cfg.couponCode ?? null,
+      coupon_discount_pct: cfg.couponDiscountPct ?? null,
+      coupon_valid_days:   cfg.couponValidDays ?? null,
     }))
 
   if (missing.length > 0) {
@@ -350,32 +381,42 @@ export async function listTemplates(): Promise<TemplateRow[]> {
 
   const { data } = await sb
     .from('whatsapp_templates')
-    .select('id, type, enabled, delay_minutes, body, send_email, email_subject')
+    .select('id, type, enabled, delay_minutes, body, send_email, email_subject, inactivity_days, coupon_code, coupon_discount_pct, coupon_valid_days')
     .eq('tenant_id', tenantId)
     .order('type')
 
   type Row = {
     id: string; type: string; enabled: boolean; delay_minutes: number; body: string
     send_email: boolean; email_subject: string | null
+    inactivity_days: number | null; coupon_code: string | null
+    coupon_discount_pct: number | null; coupon_valid_days: number | null
   }
   return ((data ?? []) as Row[]).map(r => ({
-    id:           r.id,
-    type:         r.type,
-    enabled:      r.enabled,
-    delayMinutes: r.delay_minutes,
-    body:         r.body,
-    sendEmail:    r.send_email,
-    emailSubject: r.email_subject,
+    id:                r.id,
+    type:              r.type,
+    enabled:           r.enabled,
+    delayMinutes:      r.delay_minutes,
+    body:              r.body,
+    sendEmail:         r.send_email,
+    emailSubject:      r.email_subject,
+    inactivityDays:    r.inactivity_days,
+    couponCode:        r.coupon_code,
+    couponDiscountPct: r.coupon_discount_pct,
+    couponValidDays:   r.coupon_valid_days,
   }))
 }
 
 const UpdateTemplateSchema = z.object({
-  id:           z.string().uuid(),
-  enabled:      z.boolean().optional(),
-  delayMinutes: z.number().int().min(0).max(43200).optional(),
-  body:         z.string().min(5).max(2000).optional(),
-  sendEmail:    z.boolean().optional(),
-  emailSubject: z.string().max(200).optional().nullable(),
+  id:                z.string().uuid(),
+  enabled:           z.boolean().optional(),
+  delayMinutes:      z.number().int().min(0).max(43200).optional(),
+  body:              z.string().min(5).max(2000).optional(),
+  sendEmail:         z.boolean().optional(),
+  emailSubject:      z.string().max(200).optional().nullable(),
+  inactivityDays:    z.number().int().min(7).max(365).optional().nullable(),
+  couponCode:        z.string().max(40).optional().nullable(),
+  couponDiscountPct: z.number().int().min(0).max(100).optional().nullable(),
+  couponValidDays:   z.number().int().min(1).max(365).optional().nullable(),
 })
 
 export async function updateTemplate(input: unknown): Promise<Result> {
@@ -388,11 +429,15 @@ export async function updateTemplate(input: unknown): Promise<Result> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const update: any = {}
-  if (v.enabled !== undefined)      update.enabled = v.enabled
-  if (v.delayMinutes !== undefined) update.delay_minutes = v.delayMinutes
-  if (v.body !== undefined)         update.body = v.body.trim()
-  if (v.sendEmail !== undefined)    update.send_email = v.sendEmail
-  if (v.emailSubject !== undefined) update.email_subject = v.emailSubject?.trim() || null
+  if (v.enabled !== undefined)           update.enabled = v.enabled
+  if (v.delayMinutes !== undefined)      update.delay_minutes = v.delayMinutes
+  if (v.body !== undefined)              update.body = v.body.trim()
+  if (v.sendEmail !== undefined)         update.send_email = v.sendEmail
+  if (v.emailSubject !== undefined)      update.email_subject = v.emailSubject?.trim() || null
+  if (v.inactivityDays !== undefined)    update.inactivity_days = v.inactivityDays
+  if (v.couponCode !== undefined)        update.coupon_code = v.couponCode?.trim().toUpperCase() || null
+  if (v.couponDiscountPct !== undefined) update.coupon_discount_pct = v.couponDiscountPct
+  if (v.couponValidDays !== undefined)   update.coupon_valid_days = v.couponValidDays
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any

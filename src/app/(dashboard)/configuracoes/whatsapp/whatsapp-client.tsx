@@ -20,6 +20,7 @@ const TEMPLATE_LABEL: Record<string, { title: string; subtitle: string; icon: st
   warranty_expiring: { title: 'Garantia expirando',  subtitle: '7 dias antes da garantia vencer',            icon: '🛡️' },
   birthday_month:    { title: 'Aniversário (mês)',   subtitle: 'No início do mês de aniversário do cliente', icon: '🎁' },
   birthday_day:      { title: 'Aniversário (dia)',    subtitle: 'No dia do aniversário',                      icon: '🎂' },
+  inactive_customer: { title: 'Cliente Inativo',     subtitle: 'Win-back: cliente que não compra há X dias', icon: '😢' },
 }
 
 const PLACEHOLDERS = [
@@ -343,11 +344,15 @@ function TemplateCard({
   useEffect(() => { setDraft(template) }, [template])
 
   const dirty =
-       draft.body         !== template.body
-    || draft.delayMinutes !== template.delayMinutes
-    || draft.enabled      !== template.enabled
-    || draft.sendEmail    !== template.sendEmail
-    || draft.emailSubject !== template.emailSubject
+       draft.body              !== template.body
+    || draft.delayMinutes      !== template.delayMinutes
+    || draft.enabled           !== template.enabled
+    || draft.sendEmail         !== template.sendEmail
+    || draft.emailSubject      !== template.emailSubject
+    || draft.inactivityDays    !== template.inactivityDays
+    || draft.couponCode        !== template.couponCode
+    || draft.couponDiscountPct !== template.couponDiscountPct
+    || draft.couponValidDays   !== template.couponValidDays
 
   // Split delayMinutes em horas + minutos pra UI
   const delayH = Math.floor(draft.delayMinutes / 60)
@@ -361,12 +366,16 @@ function TemplateCard({
   async function save() {
     setSaving(true)
     const res = await updateTemplate({
-      id:           draft.id,
-      enabled:      draft.enabled,
-      delayMinutes: draft.delayMinutes,
-      body:         draft.body,
-      sendEmail:    draft.sendEmail,
-      emailSubject: draft.emailSubject,
+      id:                draft.id,
+      enabled:           draft.enabled,
+      delayMinutes:      draft.delayMinutes,
+      body:              draft.body,
+      sendEmail:         draft.sendEmail,
+      emailSubject:      draft.emailSubject,
+      inactivityDays:    draft.inactivityDays,
+      couponCode:        draft.couponCode,
+      couponDiscountPct: draft.couponDiscountPct,
+      couponValidDays:   draft.couponValidDays,
     })
     setSaving(false)
     if (!res.ok) {
@@ -439,6 +448,63 @@ function TemplateCard({
               </div>
               <p className="mt-1 text-[11px] text-muted">
                 Ex: 24h 0min = 1 dia. 0h 5min = 5 minutos (útil pra teste).
+              </p>
+            </div>
+          )}
+
+          {/* Configuração específica de inactive_customer */}
+          {template.type === 'inactive_customer' && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 space-y-3">
+              <p className="text-xs font-semibold text-rose-300">⚙️ Configuração da campanha</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] text-muted">Cliente é inativo após (dias)</label>
+                  <input
+                    type="number"
+                    min="7" max="365"
+                    value={draft.inactivityDays ?? 90}
+                    onChange={e => setDraft(d => ({ ...d, inactivityDays: parseInt(e.target.value) || 90 }))}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-muted">Validade do cupom (dias)</label>
+                  <input
+                    type="number"
+                    min="1" max="365"
+                    value={draft.couponValidDays ?? 15}
+                    onChange={e => setDraft(d => ({ ...d, couponValidDays: parseInt(e.target.value) || 15 }))}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] text-muted">Código do cupom</label>
+                  <input
+                    type="text"
+                    value={draft.couponCode ?? 'VOLTA15'}
+                    onChange={e => setDraft(d => ({ ...d, couponCode: e.target.value.toUpperCase() }))}
+                    placeholder="VOLTA15"
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] text-muted">Desconto (%)</label>
+                  <input
+                    type="number"
+                    min="0" max="100"
+                    value={draft.couponDiscountPct ?? 15}
+                    onChange={e => setDraft(d => ({ ...d, couponDiscountPct: parseInt(e.target.value) || 0 }))}
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-text"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted">
+                Placeholders extras: <code className="text-rose-400">{`{cupom}`}</code>, <code className="text-rose-400">{`{desconto}`}</code>, <code className="text-rose-400">{`{valido_ate}`}</code>, <code className="text-rose-400">{`{dias_sem_comprar}`}</code>, <code className="text-rose-400">{`{beneficio}`}</code>
               </p>
             </div>
           )}

@@ -17,6 +17,7 @@ import { CUSTOMER_ORIGIN_OPTIONS, originLabel } from '@/lib/customer-origin'
 import { CampaignCodePicker } from '@/components/meta-ads/campaign-code-picker'
 import { SALE_CHANNEL_OPTIONS_PICKABLE, DELIVERY_TYPE_OPTIONS, type SaleChannel, type DeliveryType } from '@/lib/sale-channels'
 import { validateBirthdayCoupon, markBirthdayCouponUsed } from '@/actions/birthdays'
+import { validateCoupon, markCouponUsed } from '@/actions/coupons'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,11 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
   const [discount, setDiscount] = useState('')
   // Cupom de aniversário (estado: input + aplicado/inválido + percentual)
   const [couponInput, setCouponInput]   = useState('')
-  const [couponApplied, setCouponApplied] = useState<{ percent: number; customerName: string } | null>(null)
+  const [couponApplied, setCouponApplied] = useState<
+    | { kind: 'birthday'; percent: number; customerName: string }
+    | { kind: 'reactivation'; percent: number; couponId: string; code: string }
+    | null
+  >(null)
   const [validatingCoupon, setValidatingCoupon] = useState(false)
 
   // ── Payment ──
@@ -372,31 +377,40 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
     } finally { setSavingCustomer(false) }
   }
 
-  // ── Aplicar cupom de aniversário ──
-  // Valida no servidor: cliente tem aniv. no mês corrente? não usou ainda?
-  // Se ok, calcula desconto sobre o subtotal e seta no campo `discount`.
+  // ── Aplicar cupom (reativação NOVO + aniversário LEGADO) ──
   async function applyBirthdayCoupon() {
     if (isDefault) {
-      toast.error('Selecione um cliente cadastrado pra usar o cupom de aniversário.')
+      toast.error('Selecione um cliente cadastrado pra usar cupom.')
       return
     }
-    if (!couponInput.trim()) {
+    const code = couponInput.trim().toUpperCase()
+    if (!code) {
       toast.error('Digite o código do cupom.')
       return
     }
     setValidatingCoupon(true)
     try {
+      // 1. Tenta cupom novo (reativação)
+      const newRes = await validateCoupon({ code, customerId: customer.id })
+      if (newRes.valid && newRes.discountPct != null && newRes.couponId) {
+        const discountCents = Math.round((subtotal * newRes.discountPct) / 100)
+        setDiscount((discountCents / 100).toFixed(2).replace('.', ','))
+        setCouponApplied({ kind: 'reactivation', percent: newRes.discountPct, couponId: newRes.couponId, code })
+        toast.success(`🎁 Cupom ${code}: ${newRes.discountPct}% de desconto!`)
+        return
+      }
+
+      // 2. Fallback: cupom legado (aniversário)
       const res = await validateBirthdayCoupon({
         customerId: customer.id,
-        couponCode: couponInput.trim(),
+        couponCode: code,
       })
-      if (!res.ok) { toast.error(res.error); return }
+      if (!res.ok) { toast.error(newRes.message ?? res.error); return }
 
-      // Calcula desconto absoluto sobre o subtotal e preenche o campo
       const discountCents = Math.round((subtotal * res.discountPercent) / 100)
       const reais = (discountCents / 100).toFixed(2).replace('.', ',')
       setDiscount(reais)
-      setCouponApplied({ percent: res.discountPercent, customerName: res.customerName })
+      setCouponApplied({ kind: 'birthday', percent: res.discountPercent, customerName: res.customerName })
       toast.success(`🎂 Cupom aplicado: ${res.discountPercent}% de desconto!`)
     } finally {
       setValidatingCoupon(false)
@@ -462,7 +476,7 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
     }
     setFinalizing(true)
     try {
-      await createSale({
+      const sale = await createSale({
         customerId:     customer.id,
         subtotalCents:  subtotal,
         discountCents:  parseCents(discount),
@@ -492,9 +506,13 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
           frequency:         'monthly' as const,
         } : undefined,
       })
-      // Marca cupom de aniversário como usado (se aplicado nessa venda)
+      // Marca cupom como usado (sistema novo OU legado)
       if (couponApplied && customer.id) {
-        await markBirthdayCouponUsed(customer.id).catch(() => null)
+        if (couponApplied.kind === 'reactivation') {
+          await markCouponUsed({ couponId: couponApplied.couponId, saleId: sale.id }).catch(() => null)
+        } else {
+          await markBirthdayCouponUsed(customer.id).catch(() => null)
+        }
       }
       toast.success('Venda finalizada com sucesso!')
       setCart([]); setShipping(''); setDiscount('')
@@ -1091,7 +1109,11 @@ export function PosClient({ consumidorFinal, stockControlMode }: { consumidorFin
                     <p className="text-[11px] font-bold" style={{ color: '#E4405F' }}>
                       Cupom aplicado: {couponApplied.percent}% OFF
                     </p>
-                    <p className="text-[10px] text-muted">Aniversariante: {couponApplied.customerName}</p>
+                    <p className="text-[10px] text-muted">
+                      {couponApplied.kind === 'birthday'
+                        ? `Aniversariante: ${couponApplied.customerName}`
+                        : `Reativação: ${couponApplied.code}`}
+                    </p>
                   </div>
                 </div>
                 <button onClick={clearCoupon} className="text-muted hover:text-text">
