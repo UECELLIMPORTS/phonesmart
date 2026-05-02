@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const ANTISPAM_DAYS = 90
+const MAX_PER_RUN_PER_TENANT = 30   // limite anti-burst (Resend free = 100/dia)
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -106,14 +107,18 @@ export async function GET(request: Request) {
         .gte('created_at', antispamIso)
       const recentlyContacted = new Set(((recentMsgs ?? []) as { customer_id: string }[]).map(r => r.customer_id))
 
-      // Filtra inativos
-      const inactiveCustomers = allCustomers.filter(c => {
-        if (recentlyContacted.has(c.id)) return false
-        const lastSaleDate = lastSaleMap.get(c.id)
-        if (lastSaleDate) return lastSaleDate < cutoffIso
-        // Nunca comprou — usa created_at como proxy
-        return c.created_at < cutoffIso
-      })
+      // Filtra inativos: SOMENTE clientes que JÁ compraram pelo menos 1x e
+      // pararam. Cliente sem venda registrada (importação, lead, cadastro de
+      // teste) NÃO entra — caso contrário a primeira execução do cron dispara
+      // win-back pra base inteira importada de outro sistema.
+      const inactiveCustomers = allCustomers
+        .filter(c => {
+          if (recentlyContacted.has(c.id)) return false
+          const lastSaleDate = lastSaleMap.get(c.id)
+          if (!lastSaleDate) return false
+          return lastSaleDate < cutoffIso
+        })
+        .slice(0, MAX_PER_RUN_PER_TENANT)   // anti-burst
 
       if (inactiveCustomers.length === 0) { totalSkipped++; continue }
 
@@ -124,7 +129,7 @@ export async function GET(request: Request) {
       const validUntilFmt = validUntil.toLocaleDateString('pt-BR')
 
       for (const c of inactiveCustomers) {
-        const lastSaleDate = lastSaleMap.get(c.id) ?? c.created_at
+        const lastSaleDate = lastSaleMap.get(c.id)!   // garantido pelo filter
         const daysSince = Math.floor((Date.now() - new Date(lastSaleDate).getTime()) / 86400000)
 
         // Cria cupom (idempotente — UNIQUE INDEX evita duplicar)
