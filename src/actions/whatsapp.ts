@@ -149,12 +149,15 @@ export async function refreshWhatsAppStatus(): Promise<Result<WhatsAppStatus>> {
   const sb = supabase as any
   const { data: tenant } = await sb
     .from('tenants')
-    .select('whatsapp_instance_name')
+    .select('whatsapp_instance_name, whatsapp_status')
     .eq('id', tenantId)
     .maybeSingle()
 
-  const instance = (tenant as { whatsapp_instance_name: string | null } | null)?.whatsapp_instance_name
-  if (!instance) {
+  const row = (tenant ?? {}) as { whatsapp_instance_name: string | null; whatsapp_status: string | null }
+  const instance = row.whatsapp_instance_name
+  // Sem instância OU usuário desconectou → não consulta Evolution
+  // (evita race onde Evolution ainda reporta 'open' depois do logout)
+  if (!instance || row.whatsapp_status === 'disconnected') {
     return { ok: true, data: await getWhatsAppStatus() }
   }
 
@@ -190,7 +193,7 @@ export async function refreshWhatsAppStatus(): Promise<Result<WhatsAppStatus>> {
 // disconnectWhatsApp — logout + (opcional) delete da instância
 // ──────────────────────────────────────────────────────────────────────────
 
-export async function disconnectWhatsApp(opts: { hard?: boolean } = {}): Promise<Result> {
+export async function disconnectWhatsApp(opts: { hard?: boolean } = {}): Promise<Result<WhatsAppStatus>> {
   const { supabase, user } = await requireAuth()
   const tenantId = getTenantId(user)
 
@@ -204,26 +207,33 @@ export async function disconnectWhatsApp(opts: { hard?: boolean } = {}): Promise
 
   const instance = (tenant as { whatsapp_instance_name: string | null } | null)?.whatsapp_instance_name
   if (instance) {
-    // Best effort — se Evolution já tá fora, ignora erros
+    // Soft = logout (mantém instância, exige re-scan); Hard = deleta instância.
+    // Evolution às vezes demora a refletir o logout, então também deletamos a
+    // instância no soft pra que `refreshWhatsAppStatus` não reverta o estado
+    // ao consultar a Evolution e ainda receber state='open'.
     if (opts.hard) {
       await deleteInstance(instance).catch(() => null)
     } else {
       await logoutInstance(instance).catch(() => null)
+      await deleteInstance(instance).catch(() => null)
     }
   }
 
-  await sb
+  const { error } = await sb
     .from('tenants')
     .update({
       whatsapp_status:        'disconnected',
       whatsapp_phone:         null,
       whatsapp_connected_at:  null,
-      ...(opts.hard ? { whatsapp_instance_name: null } : {}),
+      whatsapp_last_error:    null,
+      whatsapp_instance_name: null,
     })
     .eq('id', tenantId)
 
+  if (error) return { ok: false, error: `Erro ao salvar desconexão: ${error.message}` }
+
   revalidatePath('/configuracoes/whatsapp')
-  return { ok: true }
+  return { ok: true, data: await getWhatsAppStatus() }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

@@ -122,7 +122,7 @@ export function WhatsAppClient({
         return
       }
       toast.success('WhatsApp desconectado.')
-      await refreshStatus()
+      if (res.data) setStatus(res.data)
     })
   }
 
