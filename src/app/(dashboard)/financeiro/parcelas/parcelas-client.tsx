@@ -157,8 +157,8 @@ export function ParcelasClient({
           disabled={togglingReminders}
           className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition ${
             remindersEnabled
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-              : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/150/20'
+              : 'border-zinc-700/60 bg-card text-muted hover:bg-zinc-800/40'
           }`}
           title={remindersEnabled
             ? 'Cron diário (09h) envia email pra clientes com parcelas em D-7/D-3/D-1/D/D+1/D+3'
@@ -171,21 +171,21 @@ export function ParcelasClient({
 
       {/* Resumo */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-rose-700">
+        <div className="rounded-2xl border border-rose-500/30 bg-gradient-to-br from-rose-500/10 to-card p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-rose-400">
             <AlertTriangle className="h-3.5 w-3.5" />
             Atrasadas
           </div>
-          <p className="mt-1 text-2xl font-bold text-rose-700">{BRL(totals.lateAmount)}</p>
-          <p className="text-xs text-rose-600">{counts.late} parcela{counts.late !== 1 ? 's' : ''}</p>
+          <p className="mt-1 text-2xl font-bold text-rose-400">{BRL(totals.lateAmount)}</p>
+          <p className="text-xs text-rose-400">{counts.late} parcela{counts.late !== 1 ? 's' : ''}</p>
         </div>
-        <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
+        <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-card p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-400">
             <CalendarClock className="h-3.5 w-3.5" />
             A vencer
           </div>
-          <p className="mt-1 text-2xl font-bold text-blue-700">{BRL(totals.pendingAmount)}</p>
-          <p className="text-xs text-blue-600">{counts.pending} parcela{counts.pending !== 1 ? 's' : ''}</p>
+          <p className="mt-1 text-2xl font-bold text-blue-400">{BRL(totals.pendingAmount)}</p>
+          <p className="text-xs text-blue-400">{counts.pending} parcela{counts.pending !== 1 ? 's' : ''}</p>
         </div>
       </div>
 
@@ -197,52 +197,52 @@ export function ParcelasClient({
             onClick={() => setFilter(f)}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
               filter === f
-                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'
+                ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                : 'border-zinc-700/60 bg-card text-muted hover:border-zinc-300'
             }`}
           >
             {f === 'all' ? 'Todas' : f === 'late' ? 'Atrasadas' : 'A vencer'}
-            <span className="ml-1.5 text-zinc-400">{counts[f]}</span>
+            <span className="ml-1.5 text-muted/70">{counts[f]}</span>
           </button>
         ))}
       </div>
 
       {/* Lista */}
-      <div className="rounded-2xl border bg-white shadow-sm ring-1 ring-zinc-200 overflow-hidden">
+      <div className="rounded-2xl border bg-card shadow-sm ring-1 ring-zinc-800/60 overflow-hidden">
         {visible.length === 0 ? (
-          <div className="px-5 py-16 text-center text-sm text-zinc-500">
+          <div className="px-5 py-16 text-center text-sm text-muted">
             <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-emerald-300" />
             Nenhuma parcela {filter !== 'all' ? `${filter === 'late' ? 'atrasada' : 'a vencer'}` : 'pendente'}!
           </div>
         ) : (
-          <ul className="divide-y divide-zinc-100">
+          <ul className="divide-y divide-zinc-800/60">
             {visible.map(i => {
               const days = daysFromToday(i.dueDate)
               const wa = whatsappLink(i.customerWhatsapp, i.customerName, i.amountCents, i.dueDate, i.installmentNumber)
               return (
                 <li key={i.id} className={`px-5 py-4 transition ${
-                  i.status === 'late' ? 'bg-rose-50/40 hover:bg-rose-50' : 'hover:bg-zinc-50'
+                  i.status === 'late' ? 'bg-rose-500/10/40 hover:bg-rose-500/150/10' : 'hover:bg-zinc-800/40'
                 }`}>
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-zinc-900">{i.customerName}</p>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-700">
+                        <p className="text-sm font-semibold text-text">{i.customerName}</p>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800/60 px-2 py-0.5 text-[10px] font-medium text-text/90">
                           {i.installmentNumber}/{i.totalInstallments}
                         </span>
                         {i.status === 'late' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-700">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/20 px-2 py-0.5 text-[10px] font-medium text-rose-400">
                             <AlertTriangle className="h-3 w-3" />
                             {Math.abs(days)} dia{Math.abs(days) !== 1 ? 's' : ''} atrasada
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">
                             <CalendarClock className="h-3 w-3" />
                             {days === 0 ? 'Vence hoje' : `Vence em ${days} dia${days !== 1 ? 's' : ''}`}
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                         <span>Vencimento: {fmtDate(i.dueDate)}</span>
                         {i.customerWhatsapp && (
                           <span><Phone className="inline h-3 w-3 mr-0.5" />{i.customerWhatsapp}</span>
@@ -250,7 +250,7 @@ export function ParcelasClient({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className={`text-lg font-bold ${i.status === 'late' ? 'text-rose-600' : 'text-blue-600'}`}>
+                      <p className={`text-lg font-bold ${i.status === 'late' ? 'text-rose-400' : 'text-blue-400'}`}>
                         {BRL(i.amountCents)}
                       </p>
                     </div>
@@ -261,7 +261,7 @@ export function ParcelasClient({
                         href={wa}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/150/20"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         Cobrar via WhatsApp
@@ -288,36 +288,36 @@ export function ParcelasClient({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setPaying(null) }}
         >
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3">
-              <h3 className="text-base font-semibold text-zinc-900">
+          <div className="w-full max-w-md rounded-2xl bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-700/60 px-5 py-3">
+              <h3 className="text-base font-semibold text-text">
                 Marcar parcela como paga
               </h3>
-              <button onClick={() => setPaying(null)} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100">
+              <button onClick={() => setPaying(null)} className="rounded-lg p-1 text-muted hover:bg-zinc-800/60">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="px-5 py-4 space-y-4">
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs">
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs">
                 <p className="font-semibold text-blue-900">{paying.customerName}</p>
-                <p className="text-blue-700">
+                <p className="text-blue-400">
                   Parcela {paying.installmentNumber}/{paying.totalInstallments} • Vence {fmtDate(paying.dueDate)}
                 </p>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-700">Valor recebido (R$)</label>
+                <label className="mb-1 block text-xs font-medium text-text/90">Valor recebido (R$)</label>
                 <input
                   value={payAmount}
                   onChange={e => setPayAmount(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-700">Forma de pagamento</label>
+                <label className="mb-1 block text-xs font-medium text-text/90">Forma de pagamento</label>
                 <select
                   value={payMethod}
                   onChange={e => setPayMethod(e.target.value as typeof payMethod)}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 >
                   <option value="cash">Dinheiro</option>
                   <option value="pix">PIX</option>
@@ -327,19 +327,19 @@ export function ParcelasClient({
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-700">Observação</label>
+                <label className="mb-1 block text-xs font-medium text-text/90">Observação</label>
                 <input
                   value={payNotes}
                   onChange={e => setPayNotes(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-3">
+            <div className="flex justify-end gap-2 border-t border-zinc-800/60 px-5 py-3">
               <button
                 onClick={() => setPaying(null)}
                 disabled={pending}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-700/60 px-4 py-2 text-sm font-medium text-text/90 hover:bg-zinc-800/40"
               >
                 Cancelar
               </button>

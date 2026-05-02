@@ -69,10 +69,10 @@ const STATUS_LABEL: Record<ProductSerial['status'], string> = {
 }
 
 const STATUS_BADGE: Record<ProductSerial['status'], string> = {
-  available: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  sold:      'bg-blue-100 text-blue-700 border-blue-200',
-  returned:  'bg-amber-100 text-amber-700 border-amber-200',
-  defective: 'bg-rose-100 text-rose-700 border-rose-200',
+  available: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  sold:      'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  returned:  'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  defective: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
 }
 
 const STATUS_ICON = {
@@ -248,16 +248,16 @@ export function SerialsPanel({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <section className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200 overflow-hidden">
+    <section className="rounded-2xl bg-card shadow-sm ring-1 ring-zinc-800/60 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-gradient-to-r from-blue-50 to-white px-5 py-4">
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-700/60 bg-gradient-to-r from-blue-500/10 to-card px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-blue-500 p-2 text-white">
             <Smartphone className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-zinc-900">IMEIs / Seriais</h2>
-            <p className="text-xs text-zinc-500">{productName}</p>
+            <h2 className="text-base font-semibold text-text">IMEIs / Seriais</h2>
+            <p className="text-xs text-muted">{productName}</p>
           </div>
         </div>
         <button
@@ -273,61 +273,61 @@ export function SerialsPanel({
       {/* Feedback */}
       {(error || info) && (
         <div className={`mx-5 mt-4 rounded-lg border px-3 py-2 text-sm ${
-          error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          error ? 'border-rose-500/30 bg-rose-500/10 text-rose-400' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
         }`}>
           {error || info}
         </div>
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-700/60 px-5 py-3">
         {(['all', 'available', 'sold', 'returned', 'defective'] as StatusFilter[]).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
               filter === f
-                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                : 'border-zinc-200 text-zinc-600 hover:border-zinc-300'
+                ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                : 'border-zinc-700/60 text-muted hover:border-zinc-300'
             }`}
           >
             {f === 'all' ? 'Todos' : STATUS_LABEL[f]}
-            <span className="ml-1.5 text-zinc-400">{counts[f]}</span>
+            <span className="ml-1.5 text-muted/70">{counts[f]}</span>
           </button>
         ))}
         <div className="ml-auto relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar IMEI…"
-            className="w-56 rounded-lg border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-sm placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none"
+            className="w-56 rounded-lg border border-zinc-700/60 bg-card py-1.5 pl-8 pr-3 text-sm placeholder:text-muted/70 focus:border-blue-500 focus:outline-none"
           />
         </div>
       </div>
 
       {/* List */}
       {visible.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-zinc-500">
+        <div className="px-5 py-10 text-center text-sm text-muted">
           {serials.length === 0
             ? 'Nenhum IMEI cadastrado ainda. Clique em "Adicionar IMEIs" pra começar.'
             : 'Nenhum IMEI corresponde aos filtros.'}
         </div>
       ) : (
-        <ul className="divide-y divide-zinc-100">
+        <ul className="divide-y divide-zinc-800/60">
           {visible.map(s => {
             const Icon = STATUS_ICON[s.status]
             return (
-              <li key={s.id} className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-50">
+              <li key={s.id} className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-800/40">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-semibold text-zinc-900">{s.serial}</span>
+                    <span className="font-mono text-sm font-semibold text-text">{s.serial}</span>
                     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_BADGE[s.status]}`}>
                       <Icon className="h-3 w-3" />
                       {STATUS_LABEL[s.status]}
                     </span>
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                     {s.serial2 && <span>2º: <span className="font-mono">{s.serial2}</span></span>}
                     <span>Custo: {BRL(s.costCents)}</span>
                     {s.soldAt && <span>Vendido em {fmtDate(s.soldAt)}</span>}
@@ -336,7 +336,7 @@ export function SerialsPanel({
                 </div>
                 <a
                   href={`/imei/${encodeURIComponent(s.serial)}`}
-                  className="rounded-lg p-2 text-zinc-500 hover:bg-blue-50 hover:text-blue-600"
+                  className="rounded-lg p-2 text-muted hover:bg-blue-500/150/10 hover:text-blue-400"
                   title="Histórico do IMEI"
                 >
                   <History className="h-4 w-4" />
@@ -345,7 +345,7 @@ export function SerialsPanel({
                   href={`/etiquetas/${s.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg p-2 text-zinc-500 hover:bg-blue-50 hover:text-blue-600"
+                  className="rounded-lg p-2 text-muted hover:bg-blue-500/150/10 hover:text-blue-400"
                   title="Imprimir etiqueta"
                 >
                   <Printer className="h-4 w-4" />
@@ -353,7 +353,7 @@ export function SerialsPanel({
                 <button
                   onClick={() => openEdit(s)}
                   disabled={pending}
-                  className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-50"
+                  className="rounded-lg p-2 text-muted hover:bg-zinc-800/60 hover:text-text disabled:opacity-50"
                   title="Editar"
                 >
                   <Pencil className="h-4 w-4" />
@@ -361,7 +361,7 @@ export function SerialsPanel({
                 <button
                   onClick={() => handleDelete(s)}
                   disabled={pending || s.status === 'sold'}
-                  className="rounded-lg p-2 text-zinc-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
+                  className="rounded-lg p-2 text-muted hover:bg-rose-500/150/10 hover:text-rose-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted"
                   title={s.status === 'sold' ? 'IMEI vendido — não pode apagar' : 'Apagar'}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -377,42 +377,42 @@ export function SerialsPanel({
         <Modal title="Adicionar IMEIs" onClose={() => setAddOpen(false)}>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">
-                IMEIs / Seriais <span className="text-zinc-400">(um por linha, ou separados por vírgula/espaço)</span>
+              <label className="mb-1 block text-sm font-medium text-text/90">
+                IMEIs / Seriais <span className="text-muted/70">(um por linha, ou separados por vírgula/espaço)</span>
               </label>
               <textarea
                 value={addForm.serialsText}
                 onChange={e => setAddForm(f => ({ ...f, serialsText: e.target.value }))}
                 rows={8}
                 placeholder="356938035643809&#10;356938035643810&#10;356938035643811"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
               />
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-muted">
                 {parseSerialsList(addForm.serialsText).length} IMEI(s) válido(s) detectado(s).
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-700">
-                  Custo unitário (R$) <span className="text-zinc-400">opcional</span>
+                <label className="mb-1 block text-sm font-medium text-text/90">
+                  Custo unitário (R$) <span className="text-muted/70">opcional</span>
                 </label>
                 <input
                   value={addForm.costStr}
                   onChange={e => setAddForm(f => ({ ...f, costStr: e.target.value }))}
                   placeholder="1500,00"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-700">
-                  Observação <span className="text-zinc-400">opcional</span>
+                <label className="mb-1 block text-sm font-medium text-text/90">
+                  Observação <span className="text-muted/70">opcional</span>
                 </label>
                 <input
                   value={addForm.notes}
                   onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
                   placeholder="Ex: Lote NF 1234"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -422,7 +422,7 @@ export function SerialsPanel({
             <button
               onClick={() => setAddOpen(false)}
               disabled={pending}
-              className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="rounded-lg border border-zinc-700/60 px-4 py-2 text-sm font-medium text-text/90 hover:bg-zinc-800/40 disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -443,30 +443,30 @@ export function SerialsPanel({
         <Modal title="Editar IMEI" onClose={() => setEditing(null)}>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">IMEI / Serial principal</label>
+              <label className="mb-1 block text-sm font-medium text-text/90">IMEI / Serial principal</label>
               <input
                 value={editing.serial}
                 onChange={e => setEditing(s => s ? { ...s, serial: e.target.value } : s)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">
-                IMEI 2 <span className="text-zinc-400">opcional (dual-SIM)</span>
+              <label className="mb-1 block text-sm font-medium text-text/90">
+                IMEI 2 <span className="text-muted/70">opcional (dual-SIM)</span>
               </label>
               <input
                 value={editing.serial2}
                 onChange={e => setEditing(s => s ? { ...s, serial2: e.target.value } : s)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-700">Status</label>
+                <label className="mb-1 block text-sm font-medium text-text/90">Status</label>
                 <select
                   value={editing.status}
                   onChange={e => setEditing(s => s ? { ...s, status: e.target.value as ProductSerial['status'] } : s)}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 >
                   <option value="available">Disponível</option>
                   <option value="sold">Vendido</option>
@@ -475,21 +475,21 @@ export function SerialsPanel({
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-700">Custo (R$)</label>
+                <label className="mb-1 block text-sm font-medium text-text/90">Custo (R$)</label>
                 <input
                   value={editing.costStr}
                   onChange={e => setEditing(s => s ? { ...s, costStr: e.target.value } : s)}
                   placeholder="1500,00"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Observação</label>
+              <label className="mb-1 block text-sm font-medium text-text/90">Observação</label>
               <input
                 value={editing.notes}
                 onChange={e => setEditing(s => s ? { ...s, notes: e.target.value } : s)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
@@ -498,7 +498,7 @@ export function SerialsPanel({
             <button
               onClick={() => setEditing(null)}
               disabled={pending}
-              className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="rounded-lg border border-zinc-700/60 px-4 py-2 text-sm font-medium text-text/90 hover:bg-zinc-800/40 disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -522,10 +522,10 @@ export function SerialsPanel({
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3">
-          <h3 className="text-base font-semibold text-zinc-900">{title}</h3>
-          <button onClick={onClose} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
+      <div className="w-full max-w-lg rounded-2xl bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-zinc-700/60 px-5 py-3">
+          <h3 className="text-base font-semibold text-text">{title}</h3>
+          <button onClick={onClose} className="rounded-lg p-1 text-muted hover:bg-zinc-800/60 hover:text-text">
             <X className="h-4 w-4" />
           </button>
         </div>

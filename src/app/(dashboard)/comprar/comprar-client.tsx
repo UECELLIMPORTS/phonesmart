@@ -337,49 +337,49 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
         {/* ── LEFT: form ── */}
-        <div className="rounded-2xl border bg-white p-6 shadow-sm ring-1 ring-zinc-200 space-y-5">
-          <h2 className="text-base font-semibold text-zinc-900">Dados da compra</h2>
+        <div className="rounded-2xl border bg-card p-6 shadow-sm ring-1 ring-zinc-800/60 space-y-5">
+          <h2 className="text-base font-semibold text-text">Dados da compra</h2>
 
           {/* Produto/Modelo */}
           <div ref={productDropRef} className="relative">
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Modelo do aparelho</label>
+            <label className="mb-1 block text-sm font-medium text-text/90">Modelo do aparelho</label>
             {selectedProduct ? (
-              <div className="flex items-center justify-between rounded-lg border border-blue-300 bg-blue-50 px-3 py-2.5">
+              <div className="flex items-center justify-between rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-zinc-900 truncate">{selectedProduct.name}</p>
+                  <p className="text-sm font-semibold text-text truncate">{selectedProduct.name}</p>
                   {selectedProduct.code && (
-                    <p className="text-xs text-zinc-500">Cód: {selectedProduct.code}</p>
+                    <p className="text-xs text-muted">Cód: {selectedProduct.code}</p>
                   )}
                 </div>
-                <button onClick={clearProduct} className="text-zinc-500 hover:text-rose-600">
+                <button onClick={clearProduct} className="text-muted hover:text-rose-400">
                   <X className="h-4 w-4" />
                 </button>
               </div>
             ) : (
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
                 <input
                   value={productQuery}
                   onChange={e => setProductQuery(e.target.value)}
                   placeholder="iPhone 12, Samsung A54, etc..."
-                  className="w-full rounded-lg border border-zinc-200 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
                 />
                 {searchingProduct && (
-                  <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" />
+                  <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted/70" />
                 )}
                 {productDrop && (
-                  <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-200 bg-white shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                  <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-700/60 bg-card shadow-xl overflow-hidden max-h-60 overflow-y-auto">
                     {productResults.map(p => (
                       <button
                         key={p.id}
                         onMouseDown={() => pickProduct(p)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-blue-50"
+                        className="flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-blue-500/150/10"
                       >
                         <div className="text-left min-w-0">
-                          <p className="font-medium text-zinc-900 truncate">{p.name}</p>
-                          {p.code && <p className="text-xs text-zinc-500">Cód: {p.code}</p>}
+                          <p className="font-medium text-text truncate">{p.name}</p>
+                          {p.code && <p className="text-xs text-muted">Cód: {p.code}</p>}
                         </div>
-                        <p className="text-xs text-zinc-500 ml-2 shrink-0">
+                        <p className="text-xs text-muted ml-2 shrink-0">
                           {p.stock_qty ?? 0} em estoque
                         </p>
                       </button>
@@ -388,49 +388,49 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                 )}
               </div>
             )}
-            <p className="mt-1 text-xs text-zinc-500">
-              Não achou o modelo? Cadastre primeiro em <a href="/estoque" className="text-blue-600 hover:underline">Estoque</a>.
+            <p className="mt-1 text-xs text-muted">
+              Não achou o modelo? Cadastre primeiro em <a href="/estoque" className="text-blue-400 hover:underline">Estoque</a>.
             </p>
           </div>
 
           {/* IMEI */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">IMEI / Serial</label>
+              <label className="mb-1 block text-sm font-medium text-text/90">IMEI / Serial</label>
               <input
                 value={serial}
                 onChange={e => setSerial(e.target.value)}
                 placeholder="356938035643809"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 font-mono text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-700/60 px-3 py-2.5 font-mono text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">
-                IMEI 2 <span className="text-zinc-400 font-normal">opcional</span>
+              <label className="mb-1 block text-sm font-medium text-text/90">
+                IMEI 2 <span className="text-muted/70 font-normal">opcional</span>
               </label>
               <input
                 value={serial2}
                 onChange={e => setSerial2(e.target.value)}
                 placeholder="dual-SIM"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 font-mono text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-700/60 px-3 py-2.5 font-mono text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
 
           {/* Valor pago */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Valor pago (R$)</label>
+            <label className="mb-1 block text-sm font-medium text-text/90">Valor pago (R$)</label>
             <input
               value={costStr}
               onChange={e => setCostStr(e.target.value)}
               placeholder="1500,00"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-lg border border-zinc-700/60 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
             />
           </div>
 
           {/* Condição */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Condição do aparelho</label>
+            <label className="mb-1 block text-sm font-medium text-text/90">Condição do aparelho</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(['A', 'B', 'C', 'defective'] as const).map(c => {
                 const cfg = CONDITION_LABEL[c]
@@ -441,15 +441,15 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                     onClick={() => setCondition(c)}
                     className={`rounded-lg border px-3 py-2 text-left transition ${
                       active
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                        : 'border-zinc-200 hover:border-zinc-300'
+                        ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
+                        : 'border-zinc-700/60 hover:border-zinc-300'
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       <span className={`inline-block h-2 w-2 rounded-full ${cfg.color}`} />
                       <span className="text-sm font-semibold">{cfg.label.split(' — ')[0]}</span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-zinc-500">{cfg.desc}</p>
+                    <p className="mt-0.5 text-[11px] text-muted">{cfg.desc}</p>
                   </button>
                 )
               })}
@@ -458,7 +458,7 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
 
           {/* Origem */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Origem da compra</label>
+            <label className="mb-1 block text-sm font-medium text-text/90">Origem da compra</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(['customer', 'supplier', 'trade_in', 'other'] as const).map(t => {
                 const cfg = FROM_LABEL[t]
@@ -470,12 +470,12 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                     onClick={() => setFromType(t)}
                     className={`rounded-lg border px-3 py-2 text-left transition ${
                       active
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                        : 'border-zinc-200 hover:border-zinc-300'
+                        ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
+                        : 'border-zinc-700/60 hover:border-zinc-300'
                     }`}
                   >
-                    <Icon className="h-4 w-4 text-zinc-600" />
-                    <p className="mt-1 text-xs font-medium text-zinc-900">{cfg.label}</p>
+                    <Icon className="h-4 w-4 text-muted" />
+                    <p className="mt-1 text-xs font-medium text-text">{cfg.label}</p>
                   </button>
                 )
               })}
@@ -485,41 +485,41 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
           {/* Cliente (se origem=customer) */}
           {fromType === 'customer' && (
             <div ref={customerDropRef} className="relative">
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Cliente vendedor</label>
+              <label className="mb-1 block text-sm font-medium text-text/90">Cliente vendedor</label>
               {selectedCustomer ? (
-                <div className="flex items-center justify-between rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5">
+                <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-900 truncate">{selectedCustomer.full_name}</p>
+                    <p className="text-sm font-semibold text-text truncate">{selectedCustomer.full_name}</p>
                     {selectedCustomer.whatsapp && (
-                      <p className="text-xs text-zinc-500">WhatsApp: {selectedCustomer.whatsapp}</p>
+                      <p className="text-xs text-muted">WhatsApp: {selectedCustomer.whatsapp}</p>
                     )}
                   </div>
-                  <button onClick={clearCustomer} className="text-zinc-500 hover:text-rose-600">
+                  <button onClick={clearCustomer} className="text-muted hover:text-rose-400">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
                   <input
                     value={customerQuery}
                     onChange={e => setCustomerQuery(e.target.value)}
                     placeholder="Nome, CPF ou WhatsApp"
-                    className="w-full rounded-lg border border-zinc-200 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
                   />
                   {searchingCustomer && (
-                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" />
+                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted/70" />
                   )}
                   {customerDrop && (
-                    <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-200 bg-white shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                    <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-700/60 bg-card shadow-xl overflow-hidden max-h-60 overflow-y-auto">
                       {customerResults.map(c => (
                         <button
                           key={c.id}
                           onMouseDown={() => pickCustomer(c)}
-                          className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
+                          className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-500/150/10"
                         >
-                          <p className="font-medium text-zinc-900">{c.full_name}</p>
-                          {c.whatsapp && <p className="text-xs text-zinc-500">{c.whatsapp}</p>}
+                          <p className="font-medium text-text">{c.full_name}</p>
+                          {c.whatsapp && <p className="text-xs text-muted">{c.whatsapp}</p>}
                         </button>
                       ))}
                     </div>
@@ -532,43 +532,43 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
           {/* Fornecedor (se origem=supplier) — Sprint 7: autocomplete em vez de texto livre */}
           {fromType === 'supplier' && (
             <div ref={supplierDropRef} className="relative">
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Fornecedor</label>
+              <label className="mb-1 block text-sm font-medium text-text/90">Fornecedor</label>
               {selectedSupplier ? (
-                <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+                <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-500/10 px-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-900 truncate">{selectedSupplier.name}</p>
-                    <div className="text-xs text-zinc-500 flex flex-wrap gap-x-2">
+                    <p className="text-sm font-semibold text-text truncate">{selectedSupplier.name}</p>
+                    <div className="text-xs text-muted flex flex-wrap gap-x-2">
                       {selectedSupplier.tradeName && <span>{selectedSupplier.tradeName}</span>}
                       {selectedSupplier.cpfCnpj && <span>CNPJ: {selectedSupplier.cpfCnpj}</span>}
                       {selectedSupplier.contactName && <span>Contato: {selectedSupplier.contactName}</span>}
                     </div>
                   </div>
-                  <button onClick={clearSupplier} className="text-zinc-500 hover:text-rose-600">
+                  <button onClick={clearSupplier} className="text-muted hover:text-rose-400">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
                   <input
                     value={supplierQuery}
                     onChange={e => setSupplierQuery(e.target.value)}
                     placeholder="Nome, CNPJ ou nome fantasia"
-                    className="w-full rounded-lg border border-zinc-200 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
                   />
                   {searchingSupplier && (
-                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" />
+                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted/70" />
                   )}
                   {supplierDrop && (
-                    <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-200 bg-white shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+                    <div className="absolute z-30 mt-1 w-full rounded-lg border border-zinc-700/60 bg-card shadow-xl overflow-hidden max-h-60 overflow-y-auto">
                       {supplierResults.map(s => (
                         <button
                           key={s.id}
                           onMouseDown={() => pickSupplier(s)}
-                          className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
+                          className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-500/150/10"
                         >
-                          <p className="font-medium text-zinc-900">{s.name}</p>
-                          <p className="text-xs text-zinc-500">
+                          <p className="font-medium text-text">{s.name}</p>
+                          <p className="text-xs text-muted">
                             {[s.tradeName, s.cpfCnpj].filter(Boolean).join(' · ')}
                           </p>
                         </button>
@@ -577,8 +577,8 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                   )}
                 </div>
               )}
-              <p className="mt-1 text-xs text-zinc-500">
-                Não achou? <a href="/fornecedores" className="text-blue-600 hover:underline">Cadastre o fornecedor</a> primeiro.
+              <p className="mt-1 text-xs text-muted">
+                Não achou? <a href="/fornecedores" className="text-blue-400 hover:underline">Cadastre o fornecedor</a> primeiro.
               </p>
             </div>
           )}
@@ -586,12 +586,12 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
           {/* Forma de pagamento + observação */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Forma de pagamento</label>
+              <label className="mb-1 block text-sm font-medium text-text/90">Forma de pagamento</label>
               <div className="relative">
                 <select
                   value={paymentMethod}
                   onChange={e => setPaymentMethod(e.target.value as typeof paymentMethod)}
-                  className="w-full appearance-none rounded-lg border border-zinc-200 px-3 py-2.5 pr-9 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full appearance-none rounded-lg border border-zinc-700/60 px-3 py-2.5 pr-9 text-sm focus:border-blue-500 focus:outline-none"
                 >
                   <option value="">Selecione…</option>
                   <option value="cash">Dinheiro</option>
@@ -601,28 +601,28 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                   <option value="trade_in_credit">Crédito de troca</option>
                   <option value="mixed">Misto</option>
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">
-                Observação <span className="text-zinc-400 font-normal">opcional</span>
+              <label className="mb-1 block text-sm font-medium text-text/90">
+                Observação <span className="text-muted/70 font-normal">opcional</span>
               </label>
               <input
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Ex: tela com leve risco"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-zinc-700/60 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
 
           {/* Submit */}
-          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+          <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800/60">
             <button
               onClick={resetForm}
               disabled={pending}
-              className="rounded-lg border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="rounded-lg border border-zinc-700/60 px-4 py-2.5 text-sm font-medium text-text/90 hover:bg-zinc-800/40 disabled:opacity-50"
             >
               Limpar
             </button>
@@ -638,14 +638,14 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
         </div>
 
         {/* ── RIGHT: lista de compras recentes ── */}
-        <div className="rounded-2xl border bg-white p-5 shadow-sm ring-1 ring-zinc-200">
-          <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-zinc-900">
+        <div className="rounded-2xl border bg-card p-5 shadow-sm ring-1 ring-zinc-800/60">
+          <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-text">
             <ShoppingCart className="h-4 w-4 text-blue-500" />
             Compras recentes
           </h2>
 
           {acqs.length === 0 ? (
-            <p className="py-6 text-center text-sm text-zinc-500">
+            <p className="py-6 text-center text-sm text-muted">
               Nenhuma compra registrada ainda.
             </p>
           ) : (
@@ -654,53 +654,53 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                 const condCfg = a.condition ? CONDITION_LABEL[a.condition] : null
                 const fromCfg = a.acquiredFromType ? FROM_LABEL[a.acquiredFromType] : null
                 return (
-                  <li key={a.serialId} className="rounded-lg border border-zinc-200 p-3 hover:bg-zinc-50 transition">
+                  <li key={a.serialId} className="rounded-lg border border-zinc-700/60 p-3 hover:bg-zinc-800/40 transition">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-zinc-900 truncate">{a.productName}</p>
-                        <p className="font-mono text-xs text-zinc-600">{a.serial}</p>
+                        <p className="text-sm font-semibold text-text truncate">{a.productName}</p>
+                        <p className="font-mono text-xs text-muted">{a.serial}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-blue-600">{BRL(a.costCents)}</p>
-                        <p className="text-[10px] text-zinc-400">{fmtDate(a.acquiredAt)}</p>
+                        <p className="text-sm font-bold text-blue-400">{BRL(a.costCents)}</p>
+                        <p className="text-[10px] text-muted/70">{fmtDate(a.acquiredAt)}</p>
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {condCfg && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-zinc-200 px-2 py-0.5 text-[10px] font-medium">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700/60 px-2 py-0.5 text-[10px] font-medium">
                           <span className={`inline-block h-1.5 w-1.5 rounded-full ${condCfg.color}`} />
                           {condCfg.label.split(' — ')[0]}
                         </span>
                       )}
                       {fromCfg && (
-                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-600">
+                        <span className="rounded-full bg-zinc-800/60 px-2 py-0.5 text-[10px] text-muted">
                           {fromCfg.label}
                         </span>
                       )}
                       {a.customerName && (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">
                           {a.customerName}
                         </span>
                       )}
                       {a.supplierName && (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
+                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">
                           {a.supplierName}
                         </span>
                       )}
                       {a.status === 'sold' && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-400">
                           <CheckCircle2 className="h-3 w-3" />
                           Vendido
                         </span>
                       )}
                     </div>
                     {/* Sprint 9: botões de recibo */}
-                    <div className="mt-2.5 flex flex-wrap gap-1.5 pt-2 border-t border-zinc-100">
+                    <div className="mt-2.5 flex flex-wrap gap-1.5 pt-2 border-t border-zinc-800/60">
                       <a
                         href={`/api/recibo-compra/${a.serialId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100"
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-400 hover:bg-blue-500/150/20"
                       >
                         <FileText className="h-3 w-3" />
                         Ver recibo
@@ -708,7 +708,7 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                       <button
                         onClick={() => handleShareWhatsapp(a)}
                         disabled={sharingSerialId === a.serialId}
-                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/150/20 disabled:opacity-50"
                       >
                         {sharingSerialId === a.serialId
                           ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -717,7 +717,7 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
                       </button>
                       <button
                         onClick={() => handleOpenEmail(a)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50"
+                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-700/60 bg-card px-2.5 py-1 text-[11px] font-medium text-text/90 hover:bg-zinc-800/40"
                       >
                         <Mail className="h-3 w-3" />
                         Email
@@ -737,38 +737,38 @@ export function ComprarClient({ initialAcquisitions }: { initialAcquisitions: Ac
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={e => { if (e.target === e.currentTarget) setEmailModal(null) }}
         >
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3">
-              <h3 className="text-base font-semibold text-zinc-900">Enviar recibo por email</h3>
-              <button onClick={() => setEmailModal(null)} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100">
+          <div className="w-full max-w-md rounded-2xl bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-700/60 px-5 py-3">
+              <h3 className="text-base font-semibold text-text">Enviar recibo por email</h3>
+              <button onClick={() => setEmailModal(null)} className="rounded-lg p-1 text-muted hover:bg-zinc-800/60">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="px-5 py-4 space-y-4">
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs">
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs">
                 <p className="font-semibold text-blue-900">{emailModal.sellerName}</p>
-                <p className="text-blue-700">PDF do recibo será anexado ao email.</p>
+                <p className="text-blue-400">PDF do recibo será anexado ao email.</p>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-700">Email do destinatário</label>
+                <label className="mb-1 block text-xs font-medium text-text/90">Email do destinatário</label>
                 <input
                   type="email"
                   value={emailModal.toEmail}
                   onChange={e => setEmailModal(m => m ? { ...m, toEmail: e.target.value } : m)}
                   placeholder="cliente@exemplo.com"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   autoFocus
                 />
               </div>
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-[11px] text-muted">
                 ⚠️ Envio por email exige <strong>RESEND_API_KEY</strong> configurado. Se não tiver, use o botão WhatsApp.
               </p>
             </div>
-            <div className="flex justify-end gap-2 border-t border-zinc-100 px-5 py-3">
+            <div className="flex justify-end gap-2 border-t border-zinc-800/60 px-5 py-3">
               <button
                 onClick={() => setEmailModal(null)}
                 disabled={sendingEmail}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-700/60 px-4 py-2 text-sm font-medium text-text/90 hover:bg-zinc-800/40"
               >
                 Cancelar
               </button>

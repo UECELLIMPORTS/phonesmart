@@ -175,41 +175,41 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
 
       {/* Resumo */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+        <div className="rounded-2xl border border-zinc-700/60 bg-card p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
             <Building2 className="h-3.5 w-3.5" />
             Ativos
           </div>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{totals.total}</p>
+          <p className="mt-1 text-2xl font-bold text-text">{totals.total}</p>
         </div>
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-700">
+        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-400">
             <Package className="h-3.5 w-3.5" />
             Aparelhos
           </div>
-          <p className="mt-1 text-2xl font-bold text-blue-700">{totals.acquisitions}</p>
+          <p className="mt-1 text-2xl font-bold text-blue-400">{totals.acquisitions}</p>
         </div>
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-400">
             <DollarSign className="h-3.5 w-3.5" />
             Total comprado
           </div>
-          <p className="mt-1 text-2xl font-bold text-emerald-700">{BRL(totals.totalSpent)}</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-400">{BRL(totals.totalSpent)}</p>
         </div>
       </div>
 
       {/* Search */}
       <div className="flex gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[240px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por nome, CNPJ ou contato…"
-            className="w-full rounded-lg border border-zinc-200 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-zinc-700/60 py-2.5 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-text/90 cursor-pointer">
           <input
             type="checkbox"
             checked={showInactive}
@@ -221,35 +221,35 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
       </div>
 
       {/* Lista */}
-      <div className="rounded-2xl border bg-white shadow-sm ring-1 ring-zinc-200 overflow-hidden">
+      <div className="rounded-2xl border bg-card shadow-sm ring-1 ring-zinc-800/60 overflow-hidden">
         {visible.length === 0 ? (
-          <div className="px-5 py-16 text-center text-sm text-zinc-500">
-            <Building2 className="mx-auto mb-3 h-8 w-8 text-zinc-300" />
+          <div className="px-5 py-16 text-center text-sm text-muted">
+            <Building2 className="mx-auto mb-3 h-8 w-8 text-muted/50" />
             {suppliers.length === 0
               ? 'Nenhum fornecedor cadastrado. Clique em "Novo fornecedor" pra começar.'
               : 'Nenhum fornecedor corresponde aos filtros.'}
           </div>
         ) : (
-          <ul className="divide-y divide-zinc-100">
+          <ul className="divide-y divide-zinc-800/60">
             {visible.map(s => (
-              <li key={s.id} className={`px-5 py-4 hover:bg-zinc-50 transition ${!s.isActive ? 'opacity-60' : ''}`}>
+              <li key={s.id} className={`px-5 py-4 hover:bg-zinc-800/40 transition ${!s.isActive ? 'opacity-60' : ''}`}>
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-base font-semibold text-zinc-900">{s.name}</p>
+                      <p className="text-base font-semibold text-text">{s.name}</p>
                       {s.category && CATEGORY_LABEL[s.category] && (
-                        <span className="rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                        <span className="rounded-full bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 text-[10px] font-medium text-blue-400">
                           {CATEGORY_LABEL[s.category]}
                         </span>
                       )}
                       {!s.isActive && (
-                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                        <span className="rounded-full bg-zinc-800/60 px-2 py-0.5 text-[10px] font-medium text-muted">
                           Inativo
                         </span>
                       )}
                     </div>
-                    {s.tradeName && <p className="text-xs text-zinc-500">{s.tradeName}</p>}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-600">
+                    {s.tradeName && <p className="text-xs text-muted">{s.tradeName}</p>}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                       {s.cpfCnpj && <span>CNPJ: {fmtCpfCnpj(s.cpfCnpj)}</span>}
                       {s.contactName && <span>👤 {s.contactName}</span>}
                       {s.whatsapp && <span><Phone className="inline h-3 w-3 mr-0.5" />{fmtPhone(s.whatsapp)}</span>}
@@ -260,10 +260,10 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
                     </div>
                     {(s.acquisitionsCount ?? 0) > 0 && (
                       <p className="mt-1 text-xs">
-                        <span className="text-zinc-500">Já forneceu</span>{' '}
-                        <span className="font-semibold text-blue-600">{s.acquisitionsCount} aparelho{s.acquisitionsCount !== 1 ? 's' : ''}</span>
+                        <span className="text-muted">Já forneceu</span>{' '}
+                        <span className="font-semibold text-blue-400">{s.acquisitionsCount} aparelho{s.acquisitionsCount !== 1 ? 's' : ''}</span>
                         {s.totalAcquiredCents != null && s.totalAcquiredCents > 0 && (
-                          <span className="text-zinc-500"> · Total: <span className="font-semibold text-emerald-600">{BRL(s.totalAcquiredCents)}</span></span>
+                          <span className="text-muted"> · Total: <span className="font-semibold text-emerald-400">{BRL(s.totalAcquiredCents)}</span></span>
                         )}
                       </p>
                     )}
@@ -272,7 +272,7 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
                     <button
                       onClick={() => openEdit(s)}
                       disabled={pending}
-                      className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                      className="rounded-lg p-2 text-muted hover:bg-zinc-800/60 hover:text-text"
                       title="Editar"
                     >
                       <Pencil className="h-4 w-4" />
@@ -281,7 +281,7 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
                       <button
                         onClick={() => handleDelete(s)}
                         disabled={pending}
-                        className="rounded-lg p-2 text-zinc-500 hover:bg-rose-50 hover:text-rose-600"
+                        className="rounded-lg p-2 text-muted hover:bg-rose-500/150/10 hover:text-rose-400"
                         title="Desativar"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -301,12 +301,12 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center"
           onClick={e => { if (e.target === e.currentTarget) setEditing(null) }}
         >
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl my-8">
-            <div className="sticky top-0 flex items-center justify-between border-b border-zinc-200 bg-white px-5 py-3 rounded-t-2xl">
-              <h3 className="text-base font-semibold text-zinc-900">
+          <div className="w-full max-w-2xl rounded-2xl bg-card shadow-xl my-8">
+            <div className="sticky top-0 flex items-center justify-between border-b border-zinc-700/60 bg-card px-5 py-3 rounded-t-2xl">
+              <h3 className="text-base font-semibold text-text">
                 {editing.id ? 'Editar fornecedor' : 'Novo fornecedor'}
               </h3>
-              <button onClick={() => setEditing(null)} className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100">
+              <button onClick={() => setEditing(null)} className="rounded-lg p-1 text-muted hover:bg-zinc-800/60">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -314,49 +314,49 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
             <div className="px-5 py-4 space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">Nome / Razão social *</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">Nome / Razão social *</label>
                   <input
                     value={editing.name}
                     onChange={e => setEditing(s => s ? { ...s, name: e.target.value } : s)}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">Nome fantasia</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">Nome fantasia</label>
                   <input
                     value={editing.tradeName ?? ''}
                     onChange={e => setEditing(s => s ? { ...s, tradeName: e.target.value } : s)}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">CPF/CNPJ</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">CPF/CNPJ</label>
                   <input
                     value={editing.cpfCnpj ?? ''}
                     onChange={e => setEditing(s => s ? { ...s, cpfCnpj: e.target.value } : s)}
                     placeholder="00.000.000/0000-00"
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">IE</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">IE</label>
                   <input
                     value={editing.stateReg ?? ''}
                     onChange={e => setEditing(s => s ? { ...s, stateReg: e.target.value } : s)}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">Categoria</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">Categoria</label>
                   <div className="relative">
                     <select
                       value={editing.category ?? ''}
                       onChange={e => setEditing(s => s ? { ...s, category: e.target.value } : s)}
-                      className="w-full appearance-none rounded-lg border border-zinc-200 px-3 py-2 pr-9 text-sm focus:border-blue-500 focus:outline-none"
+                      className="w-full appearance-none rounded-lg border border-zinc-700/60 px-3 py-2 pr-9 text-sm focus:border-blue-500 focus:outline-none"
                     >
                       <option value="">—</option>
                       <option value="distribuidor">Distribuidor</option>
@@ -365,135 +365,135 @@ export function FornecedoresClient({ initialSuppliers }: { initialSuppliers: Sup
                       <option value="leilao">Leilão</option>
                       <option value="outro">Outro</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">WhatsApp</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">WhatsApp</label>
                   <input
                     value={editing.whatsapp ?? ''}
                     onChange={e => setEditing(s => s ? { ...s, whatsapp: e.target.value } : s)}
                     placeholder="(79) 99999-9999"
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">Telefone fixo</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">Telefone fixo</label>
                   <input
                     value={editing.phone ?? ''}
                     onChange={e => setEditing(s => s ? { ...s, phone: e.target.value } : s)}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">Email</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">Email</label>
                   <input
                     type="email"
                     value={editing.email ?? ''}
                     onChange={e => setEditing(s => s ? { ...s, email: e.target.value } : s)}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-700">Pessoa de contato</label>
+                  <label className="mb-1 block text-xs font-medium text-text/90">Pessoa de contato</label>
                   <input
                     value={editing.contactName ?? ''}
                     onChange={e => setEditing(s => s ? { ...s, contactName: e.target.value } : s)}
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Endereço */}
-              <div className="border-t border-zinc-100 pt-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">Endereço</p>
+              <div className="border-t border-zinc-800/60 pt-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Endereço</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">CEP</label>
+                    <label className="mb-1 block text-xs font-medium text-text/90">CEP</label>
                     <div className="relative">
                       <input
                         value={editing.addressZip ?? ''}
                         onChange={e => setEditing(s => s ? { ...s, addressZip: e.target.value } : s)}
                         onBlur={e => fetchCep(e.target.value)}
                         placeholder="00000-000"
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                       />
-                      {fetchingCep && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-zinc-400" />}
+                      {fetchingCep && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted/70" />}
                     </div>
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">Logradouro</label>
+                    <label className="mb-1 block text-xs font-medium text-text/90">Logradouro</label>
                     <input
                       value={editing.addressStreet ?? ''}
                       onChange={e => setEditing(s => s ? { ...s, addressStreet: e.target.value } : s)}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">Número</label>
+                    <label className="mb-1 block text-xs font-medium text-text/90">Número</label>
                     <input
                       value={editing.addressNumber ?? ''}
                       onChange={e => setEditing(s => s ? { ...s, addressNumber: e.target.value } : s)}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">Complemento</label>
+                    <label className="mb-1 block text-xs font-medium text-text/90">Complemento</label>
                     <input
                       value={editing.addressComplement ?? ''}
                       onChange={e => setEditing(s => s ? { ...s, addressComplement: e.target.value } : s)}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">Bairro</label>
+                    <label className="mb-1 block text-xs font-medium text-text/90">Bairro</label>
                     <input
                       value={editing.addressDistrict ?? ''}
                       onChange={e => setEditing(s => s ? { ...s, addressDistrict: e.target.value } : s)}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">Cidade</label>
+                    <label className="mb-1 block text-xs font-medium text-text/90">Cidade</label>
                     <input
                       value={editing.addressCity ?? ''}
                       onChange={e => setEditing(s => s ? { ...s, addressCity: e.target.value } : s)}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">UF</label>
+                    <label className="mb-1 block text-xs font-medium text-text/90">UF</label>
                     <input
                       value={editing.addressState ?? ''}
                       onChange={e => setEditing(s => s ? { ...s, addressState: e.target.value.toUpperCase().slice(0, 2) } : s)}
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-700">Observação</label>
+                <label className="mb-1 block text-xs font-medium text-text/90">Observação</label>
                 <textarea
                   value={editing.notes ?? ''}
                   onChange={e => setEditing(s => s ? { ...s, notes: e.target.value } : s)}
                   rows={2}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-700/60 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="sticky bottom-0 flex justify-end gap-2 border-t border-zinc-100 bg-white px-5 py-3 rounded-b-2xl">
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t border-zinc-800/60 bg-card px-5 py-3 rounded-b-2xl">
               <button
                 onClick={() => setEditing(null)}
                 disabled={pending}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-700/60 px-4 py-2 text-sm font-medium text-text/90 hover:bg-zinc-800/40"
               >
                 Cancelar
               </button>
